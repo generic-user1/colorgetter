@@ -1,0 +1,12 @@
+[package]
+name = "colorgetter"
+authors = ["generic-user1"]
+description = "A solver for a mobile game where the player has to sort colored water into bottles"
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/generic-user1/colorgetter"
+categories = ["command-line-utilities", "games"]
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
