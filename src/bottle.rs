@@ -115,14 +115,14 @@ impl Bottle {
     /// may be 0; this indicates that the entirity of `content_to_pour` fit into this Bottle.
     ///
     /// If this is unsuccessful (i.e., none of the `content_to_pour` could fit into this Bottle/the colors are mismatched),
-    /// an [Err] is returned with an appropriate [PourError] variant. No change is made to this Bottle in this case.
+    /// an [Err] is returned with an appropriate [PourInError] variant. No change is made to this Bottle in this case.
     pub fn try_pour_in(
         &mut self,
         content_to_pour: ColoredWaterRun
-    ) -> Result<ColoredWaterRun, PourError> {
+    ) -> Result<ColoredWaterRun, PourInError> {
         if let Some(top_color) = self.get_top_color() {
             if top_color != content_to_pour.color {
-                return Err(PourError::MismatchedColors);
+                return Err(PourInError::MismatchedColors);
             }
         }
 
@@ -139,7 +139,7 @@ impl Bottle {
         }
 
         if count_poured == 0 {
-            Err(PourError::AlreadyFull)
+            Err(PourInError::AlreadyFull)
         } else {
             Ok(ColoredWaterRun {
                 color: content_to_pour.color,
@@ -147,14 +147,53 @@ impl Bottle {
             })
         }
     }
+
+    /// Attempt to pour a [ColoredWaterRun] out of this Bottle.
+    ///
+    /// If this is successful, will return `Ok(())`.
+    ///
+    /// If this is unsuccessful (i.e., this bottle is empty/the destination bottle couldn't accept the pour),
+    /// an [Err] is returned with an appropriate [PourOutError] variant. No change is made to either this Bottle
+    /// or the destination Bottle in this case.
+    pub fn try_pour_out(&mut self, destination: &mut Bottle) -> Result<(), PourOutError> {
+        if let Some(run_to_pour) = self.get_top_color_run() {
+            let remaining_part_of_run = destination.try_pour_in(run_to_pour)?;
+
+            //Given how many units we tried to pour and how many units couldn't be poured, find the number of units that were actually poured
+            let units_poured = run_to_pour.size - remaining_part_of_run.size;
+
+            //Remove that number of units
+            self.content.truncate(self.content.len() - units_poured);
+
+            Ok(())
+        } else {
+            Err(PourOutError::Empty)
+        }
+    }
 }
 
 ///Reasons that pouring a [ColoredWaterRun] into a [Bottle] may fail.
 #[derive(Debug, Clone, Copy)]
-pub enum PourError {
+pub enum PourInError {
     /// The destination [Bottle] is full and cannot accept any part of the [ColoredWaterRun]
     AlreadyFull,
 
     /// The destination [Bottle] has a top color that does not match the color of the [ColoredWaterRun]
     MismatchedColors
+}
+
+///Reasons that pouring a [ColoredWaterRun] out of a [Bottle] may fail.
+#[derive(Debug, Clone, Copy)]
+pub enum PourOutError {
+    /// The source [Bottle] is entirely empty and has no content to pour
+    Empty,
+
+    /// The destination [Bottle] could not accept the content to pour
+    DestinationError(PourInError)
+}
+
+impl From<PourInError> for PourOutError {
+    fn from(value: PourInError) -> Self {
+        PourOutError::DestinationError(value)
+    }
 }
