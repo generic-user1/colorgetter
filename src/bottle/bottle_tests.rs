@@ -133,5 +133,78 @@ fn test_bottle_pour_in() {
 
 #[test]
 fn test_bottle_pour_out() {
-    todo!()
+    let mut source_bottle = Bottle::with_content(&[
+        ColoredWaterUnit::Green,
+        ColoredWaterUnit::Blue,
+        ColoredWaterUnit::Red,
+        ColoredWaterUnit::Red,
+        ColoredWaterUnit::Red
+    ]);
+
+    let mut dest_bottle = Bottle::new(2);
+
+    // Pour the top color run (2 reds) into destination, should be successful
+    let try_pour_result = source_bottle.try_pour_out(&mut dest_bottle);
+    assert_eq!(try_pour_result, Ok(()));
+    assert_eq!(
+        source_bottle.get_content(),
+        &[
+            ColoredWaterUnit::Green,
+            ColoredWaterUnit::Blue,
+            ColoredWaterUnit::Red
+        ]
+    );
+    assert_eq!(
+        dest_bottle.get_content(),
+        &[ColoredWaterUnit::Red, ColoredWaterUnit::Red]
+    );
+
+    let mut source_bottle =
+        Bottle::with_content(&[ColoredWaterUnit::Green, ColoredWaterUnit::Blue]);
+    let mut dest_bottle = Bottle::with_content(&[ColoredWaterUnit::Red]);
+    dest_bottle.resize_in_place(4);
+
+    // Attempt to pour the top color run (1 blue) into destination, should fail due to mismatched colors
+    let try_pour_result = source_bottle.try_pour_out(&mut dest_bottle);
+    assert_eq!(
+        try_pour_result,
+        Err(PourOutError::DestinationError(
+            PourInError::MismatchedColors
+        ))
+    );
+    assert_eq!(
+        source_bottle.get_content(),
+        &[ColoredWaterUnit::Green, ColoredWaterUnit::Blue]
+    );
+    assert_eq!(dest_bottle.get_content(), &[ColoredWaterUnit::Red]);
+
+    let mut source_bottle = Bottle::with_content(&[
+        ColoredWaterUnit::Red,
+        ColoredWaterUnit::Blue,
+        ColoredWaterUnit::Green
+    ]);
+    let mut dest_bottle = Bottle::with_content(&[ColoredWaterUnit::Green]);
+
+    // Attempt to pour the top color run (1 green) into destination, should fail due to no space
+    let try_pour_result = source_bottle.try_pour_out(&mut dest_bottle);
+    assert_eq!(
+        try_pour_result,
+        Err(PourOutError::DestinationError(PourInError::AlreadyFull))
+    );
+    assert_eq!(
+        source_bottle.get_content(),
+        &[
+            ColoredWaterUnit::Red,
+            ColoredWaterUnit::Blue,
+            ColoredWaterUnit::Green
+        ]
+    );
+    assert_eq!(dest_bottle.get_content(), &[ColoredWaterUnit::Green]);
+
+    let mut source_bottle = Bottle::new(4);
+    let mut dest_bottle = Bottle::new(4);
+
+    //Attempt to pour the top color run (nothing) into destination, should fail due to source bottle being empty
+    let try_pour_result = source_bottle.try_pour_out(&mut dest_bottle);
+    assert_eq!(try_pour_result, Err(PourOutError::Empty));
 }
