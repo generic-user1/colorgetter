@@ -2,6 +2,9 @@
 
 use crate::colored_water::{ColoredWaterRun, ColoredWaterUnit};
 
+#[cfg(test)]
+mod bottle_tests;
+
 /// One Bottle that may contain [ColoredWaterUnit]s
 ///
 /// Each bottle has a capacity, and some content. The capacity is the number of water units the bottle is allowed to hold,
@@ -128,14 +131,14 @@ impl Bottle {
 
         // Add ColoredWaterUnits to this Bottle for each unit in content_to_pour
         let mut count_poured = 0;
-        for index in 0..content_to_pour.size {
+        for _ in 0..content_to_pour.size {
             // If we are at this bottle's capacity, stop pouring and record how many units were poured.
             if self.content.len() >= self.capacity {
-                count_poured = index;
                 break;
             }
             // If we are not yet at this bottle's capacity, pour one additional unit.
             self.content.push(content_to_pour.color);
+            count_poured += 1;
         }
 
         if count_poured == 0 {
@@ -173,7 +176,7 @@ impl Bottle {
 }
 
 ///Reasons that pouring a [ColoredWaterRun] into a [Bottle] may fail.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PourInError {
     /// The destination [Bottle] is full and cannot accept any part of the [ColoredWaterRun]
     AlreadyFull,
@@ -183,7 +186,7 @@ pub enum PourInError {
 }
 
 ///Reasons that pouring a [ColoredWaterRun] out of a [Bottle] may fail.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PourOutError {
     /// The source [Bottle] is entirely empty and has no content to pour
     Empty,
