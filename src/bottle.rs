@@ -220,10 +220,58 @@ impl From<PourInError> for PourOutError {
     }
 }
 
+/// Create a bottle with some content and an optional size
+///
+/// There are three forms:
+///
+/// - Definining a bottle with its content and a capacity:
+///  `bottle!([<Color>, <Color>, ...], <capacity>)`
+///
+/// - Defining a bottle with its content and allowing its capacity to match:
+/// `bottle!([<Color>, <Color>, ...])`
+///
+/// - Definining a bottle with its content and allowing its capacity to match,
+/// omitting square brackets `[]` surrounding color definitions:
+/// `bottle!(<Color>, <Color>, ...)`
+///
+/// In each form, `<Color>` may be any variant of [ColoredWaterUnit], though
+/// you can (and in fact must) omit the `ColoredWaterUnit::` snippet.
+/// As few as 1 ColoredWaterUnits may be used, and there is no upper bound.
+///
+/// Examples:
+/// ```
+/// use colorgetter::bottle;
+/// use colorgetter::bottle::Bottle;
+/// use colorgetter::colored_water::ColoredWaterUnit;
+///
+/// // Bottle defined with content and explicit capacity
+/// let sized_bottle = bottle!([Red, Green, Yellow], 4);
+/// assert_eq!(
+///     sized_bottle.get_content(),
+///     [ColoredWaterUnit::Red, ColoredWaterUnit::Green, ColoredWaterUnit::Yellow]
+/// );
+/// assert_eq!(sized_bottle.get_capacity(), 4);
+///
+/// // Bottle defined with content only
+/// let unsized_bottle1 = bottle!([Red, Green, Yellow]);
+/// assert_eq!(
+///     unsized_bottle1.get_content(),
+///     [ColoredWaterUnit::Red, ColoredWaterUnit::Green, ColoredWaterUnit::Yellow]
+/// );
+/// assert_eq!(unsized_bottle1.get_capacity(), 3);
+///
+/// // Bottle defined with content only, omitting square brackets
+/// let unsized_bottle2 = bottle!(Red, Green, Yellow);
+/// assert_eq!(
+///     unsized_bottle2.get_content(),
+///     [ColoredWaterUnit::Red, ColoredWaterUnit::Green, ColoredWaterUnit::Yellow]
+/// );
+/// assert_eq!(unsized_bottle2.get_capacity(), 3);
+/// ```
 #[macro_export]
 macro_rules! bottle {
-    ([$($color:ident),+], $size:expr) => {
-        Bottle::with_content(&[$(ColoredWaterUnit::$color),+]).take_as_resized($size)
+    ([$($color:ident),+], $capacity:expr) => {
+        Bottle::with_content(&[$(ColoredWaterUnit::$color),+]).take_as_resized($capacity)
     };
     ([$($color:ident),+]) => {
         Bottle::with_content(&[$(ColoredWaterUnit::$color),+])
@@ -233,6 +281,38 @@ macro_rules! bottle {
     }
 }
 
+/// Create an array of [ColoredWaterUnit]s in a more compact form;
+/// useful for quickly defining the content of a Bottle.
+///
+/// To match [bottle!], comes in 2 forms:
+///
+/// - Defining water colors with square brackets:
+/// `bottle_content!([<Color>, <Color>, ...])`
+///
+/// - Defining water colors without square brackets:
+/// `bottle_content!(<Color>, <Color>, ...)`
+///
+/// In each form, `<Color>` may be any variant of [ColoredWaterUnit], though
+/// you can (and in fact must) omit the `ColoredWaterUnit::` snippet.
+/// As few as 1 ColoredWaterUnits may be used, and there is no upper bound.
+///
+/// Examples:
+/// ```
+/// use colorgetter::bottle_content;
+/// use colorgetter::colored_water::ColoredWaterUnit;
+///
+/// let first_form = bottle_content!([Red, Green, Yellow]);
+/// assert_eq!(
+///     first_form,
+///     [ColoredWaterUnit::Red, ColoredWaterUnit::Green, ColoredWaterUnit::Yellow]
+/// );
+///
+/// let second_form = bottle_content!(Orange, Lime, Pink);
+/// assert_eq!(
+///     second_form,
+///     [ColoredWaterUnit::Orange, ColoredWaterUnit::Lime, ColoredWaterUnit::Pink]
+/// );
+/// ```
 #[macro_export]
 macro_rules! bottle_content {
     ($($color:ident),+) => {
