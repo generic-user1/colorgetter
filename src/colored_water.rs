@@ -1,4 +1,5 @@
 //! Implementation for the colored water that goes into [Bottle](crate::bottle::Bottle)
+use crossterm::style::Color;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// A group of consecutive [ColoredWaterUnit]s that are all the same color
@@ -30,6 +31,74 @@ impl From<ColoredWaterRun> for Vec<ColoredWaterUnit> {
             out.push(value.color);
         }
         out
+    }
+}
+
+impl From<&ColoredWaterUnit> for crossterm::style::Color {
+    fn from(value: &ColoredWaterUnit) -> Self {
+        match value {
+            ColoredWaterUnit::Red => Color::Rgb {
+                r: 0xFF,
+                g: 0x00,
+                b: 0x00
+            },
+            ColoredWaterUnit::Maroon => Color::Rgb {
+                r: 0x80,
+                g: 0x00,
+                b: 0x00
+            },
+            ColoredWaterUnit::Lime => Color::Rgb {
+                r: 0x00,
+                g: 0xFF,
+                b: 0x00
+            },
+            ColoredWaterUnit::Green => Color::Rgb {
+                r: 0x00,
+                g: 0x80,
+                b: 0x00
+            },
+            ColoredWaterUnit::Aqua => Color::Rgb {
+                r: 0x00,
+                g: 0xFF,
+                b: 0xFF
+            },
+            ColoredWaterUnit::Blue => Color::Rgb {
+                r: 0x00,
+                g: 0x00,
+                b: 0xFF
+            },
+            ColoredWaterUnit::Yellow => Color::Rgb {
+                r: 0xFF,
+                g: 0xD7,
+                b: 0x00
+            },
+            ColoredWaterUnit::Orange => Color::Rgb {
+                r: 0xFF,
+                g: 0x45,
+                b: 0x00
+            },
+            ColoredWaterUnit::Pink => Color::Rgb {
+                r: 0xFF,
+                g: 0x69,
+                b: 0xB4
+            },
+            ColoredWaterUnit::Tan => Color::Rgb {
+                r: 0xD2,
+                g: 0xB4,
+                b: 0x8C
+            },
+            ColoredWaterUnit::Brown => Color::Rgb {
+                r: 0x8B,
+                g: 0x45,
+                b: 0x13
+            }
+        }
+    }
+}
+
+impl From<ColoredWaterUnit> for crossterm::style::Color {
+    fn from(value: ColoredWaterUnit) -> Self {
+        value.into()
     }
 }
 
@@ -65,78 +134,6 @@ impl TryFrom<&[ColoredWaterUnit]> for ColoredWaterRun {
             })
         } else {
             Err(ColoredWaterRunError::Empty)
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-/// A color represented in RGB format
-///
-/// Can be used to represent the actual RGB color of an instance of [ColoredWaterUnit]
-pub struct RgbColor {
-    pub red: u8,
-    pub green: u8,
-    pub blue: u8
-}
-
-impl From<ColoredWaterUnit> for RgbColor {
-    fn from(value: ColoredWaterUnit) -> Self {
-        match value {
-            ColoredWaterUnit::Red => RgbColor {
-                red: 0xFF,
-                green: 0x00,
-                blue: 0x00
-            },
-            ColoredWaterUnit::Maroon => RgbColor {
-                red: 0x80,
-                green: 0x00,
-                blue: 0x00
-            },
-            ColoredWaterUnit::Lime => RgbColor {
-                red: 0x00,
-                green: 0xFF,
-                blue: 0x00
-            },
-            ColoredWaterUnit::Green => RgbColor {
-                red: 0x00,
-                green: 0x80,
-                blue: 0x00
-            },
-            ColoredWaterUnit::Aqua => RgbColor {
-                red: 0x00,
-                green: 0xFF,
-                blue: 0xFF
-            },
-            ColoredWaterUnit::Blue => RgbColor {
-                red: 0x00,
-                green: 0x00,
-                blue: 0xFF
-            },
-            ColoredWaterUnit::Yellow => RgbColor {
-                red: 0xFF,
-                green: 0xD7,
-                blue: 0x00
-            },
-            ColoredWaterUnit::Orange => RgbColor {
-                red: 0xFF,
-                green: 0x45,
-                blue: 0x00
-            },
-            ColoredWaterUnit::Pink => RgbColor {
-                red: 0xFF,
-                green: 0x69,
-                blue: 0xB4
-            },
-            ColoredWaterUnit::Tan => RgbColor {
-                red: 0xD2,
-                green: 0xB4,
-                blue: 0x8C
-            },
-            ColoredWaterUnit::Brown => RgbColor {
-                red: 0x8B,
-                green: 0x45,
-                blue: 0x13
-            }
         }
     }
 }
