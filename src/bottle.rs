@@ -82,6 +82,25 @@ impl Bottle {
         }
     }
 
+    /// Creates a new Bottle with the same content as this Bottle, but a different capacity. Avoids
+    /// copying Bottle content by consuming (taking) this Bottle. Useful for method chaining.
+    ///
+    /// If `new_capacity` is larger than current capacity, empty space will be added to the 'top' of the new Bottle.
+    /// If `new_capacity` is smaller than current capacity, space (and any water in that space) will be removed from the 'top' of the new Bottle.
+    pub fn take_as_resized(self, new_capacity: usize) -> Self {
+        // take our content as mutable
+        let mut new_content = self.content;
+        // truncate content if needed, same as resize_in_place
+        if new_content.len() > new_capacity {
+            new_content.truncate(new_capacity);
+        }
+
+        Bottle {
+            capacity: new_capacity,
+            content: new_content
+        }
+    }
+
     /// Returns the [ColoredWaterUnit] at the top of this bottle
     ///
     /// This returns [None] if there isn't any water in the bottle.
@@ -199,4 +218,27 @@ impl From<PourInError> for PourOutError {
     fn from(value: PourInError) -> Self {
         PourOutError::DestinationError(value)
     }
+}
+
+#[macro_export]
+macro_rules! bottle {
+    ([$($color:ident),+], $size:expr) => {
+        Bottle::with_content(&[$(ColoredWaterUnit::$color),+]).take_as_resized($size)
+    };
+    ([$($color:ident),+]) => {
+        Bottle::with_content(&[$(ColoredWaterUnit::$color),+])
+    };
+    ($($color:ident),+) => {
+        bottle!([$($color),+])
+    }
+}
+
+#[macro_export]
+macro_rules! bottle_content {
+    ($($color:ident),+) => {
+        [$(ColoredWaterUnit::$color),+]
+    };
+    ([$($color:ident),+]) => {
+        [$(ColoredWaterUnit::$color),+]
+    };
 }

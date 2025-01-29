@@ -33,13 +33,6 @@ impl From<ColoredWaterRun> for Vec<ColoredWaterUnit> {
     }
 }
 
-#[macro_export]
-macro_rules! bottle_content {
-    ($($color:tt),+) => {
-        [$(ColoredWaterUnit::$color),+]
-    };
-}
-
 /// Reasons converting from a `&[ColoredWaterUnit]` may fail
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ColoredWaterRunError {

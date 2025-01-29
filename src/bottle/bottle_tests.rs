@@ -1,3 +1,5 @@
+use crate::{bottle, bottle_content};
+
 use super::*;
 
 #[test]
@@ -16,12 +18,7 @@ fn test_bottle_creation() {
 
 #[test]
 fn test_bottle_resize() {
-    let bottle_base_content = [
-        ColoredWaterUnit::Aqua,
-        ColoredWaterUnit::Blue,
-        ColoredWaterUnit::Brown,
-        ColoredWaterUnit::Blue
-    ];
+    let bottle_base_content = bottle_content!(Aqua, Blue, Brown, Blue);
     let base_bottle = Bottle::with_content(&bottle_base_content);
 
     assert_eq!(base_bottle.get_capacity(), 4);
@@ -51,14 +48,29 @@ fn test_bottle_resize() {
         in_place_resized_bottle.get_content(),
         &bottle_base_content[..3]
     );
+
+    let taken_resized_bottle1 = base_bottle.clone();
+
+    let taken_resized_bottle2 = taken_resized_bottle1.take_as_resized(3);
+    assert_eq!(taken_resized_bottle2.get_capacity(), 3);
+    assert_eq!(
+        taken_resized_bottle2.get_content(),
+        &bottle_base_content[..3]
+    );
+
+    let taken_resized_bottle3 = taken_resized_bottle2.take_as_resized(5);
+    assert_eq!(taken_resized_bottle3.get_capacity(), 5);
+    assert_eq!(
+        taken_resized_bottle3.get_content(),
+        &bottle_base_content[..3]
+    );
 }
 
 #[test]
 fn test_bottle_pour_in() {
-    let mut bottle = Bottle::new(4);
-    bottle.content = vec![ColoredWaterUnit::Red];
+    let mut bottle = bottle!([Red], 4);
 
-    assert_eq!(bottle.get_content(), &[ColoredWaterUnit::Red]);
+    assert_eq!(bottle.get_content(), bottle_content!(Red));
 
     // Pour one unit of Red, should be fully successful
     let try_pour_result = bottle.try_pour_in(ColoredWaterRun {
@@ -72,10 +84,7 @@ fn test_bottle_pour_in() {
             size: 0
         })
     );
-    assert_eq!(
-        bottle.get_content(),
-        &[ColoredWaterUnit::Red, ColoredWaterUnit::Red]
-    );
+    assert_eq!(bottle.get_content(), bottle_content!(Red, Red));
 
     // Pour in 1 unit of Aqua, should be unsuccessful due to mismatched colors
     let try_pour_result = bottle.try_pour_in(ColoredWaterRun {
@@ -83,10 +92,7 @@ fn test_bottle_pour_in() {
         size: 1
     });
     assert_eq!(try_pour_result, Err(PourInError::MismatchedColors));
-    assert_eq!(
-        bottle.get_content(),
-        &[ColoredWaterUnit::Red, ColoredWaterUnit::Red]
-    );
+    assert_eq!(bottle.get_content(), bottle_content!(Red, Red));
 
     // Pour in 4 units of Red, should be partially successful (2 poured in, 2 left over)
     let try_pour_result = bottle.try_pour_in(ColoredWaterRun {
@@ -102,15 +108,7 @@ fn test_bottle_pour_in() {
         })
     );
 
-    assert_eq!(
-        bottle.get_content(),
-        &[
-            ColoredWaterUnit::Red,
-            ColoredWaterUnit::Red,
-            ColoredWaterUnit::Red,
-            ColoredWaterUnit::Red
-        ]
-    );
+    assert_eq!(bottle.get_content(), bottle_content!(Red, Red, Red, Red));
 
     // Pour in 1 unit of Red, should be unsuccessful due to bottle already being full
     let try_pour_result = bottle.try_pour_in(ColoredWaterRun {
@@ -120,26 +118,12 @@ fn test_bottle_pour_in() {
 
     assert_eq!(try_pour_result, Err(PourInError::AlreadyFull));
 
-    assert_eq!(
-        bottle.get_content(),
-        &[
-            ColoredWaterUnit::Red,
-            ColoredWaterUnit::Red,
-            ColoredWaterUnit::Red,
-            ColoredWaterUnit::Red
-        ]
-    );
+    assert_eq!(bottle.get_content(), bottle_content!(Red, Red, Red, Red));
 }
 
 #[test]
 fn test_bottle_pour_out() {
-    let mut source_bottle = Bottle::with_content(&[
-        ColoredWaterUnit::Green,
-        ColoredWaterUnit::Blue,
-        ColoredWaterUnit::Red,
-        ColoredWaterUnit::Red,
-        ColoredWaterUnit::Red
-    ]);
+    let mut source_bottle = bottle!([Green, Blue, Red, Red, Red]);
 
     let mut dest_bottle = Bottle::new(2);
 
@@ -148,21 +132,12 @@ fn test_bottle_pour_out() {
     assert_eq!(try_pour_result, Ok(()));
     assert_eq!(
         source_bottle.get_content(),
-        &[
-            ColoredWaterUnit::Green,
-            ColoredWaterUnit::Blue,
-            ColoredWaterUnit::Red
-        ]
+        bottle_content!(Green, Blue, Red)
     );
-    assert_eq!(
-        dest_bottle.get_content(),
-        &[ColoredWaterUnit::Red, ColoredWaterUnit::Red]
-    );
+    assert_eq!(dest_bottle.get_content(), bottle_content!(Red, Red));
 
-    let mut source_bottle =
-        Bottle::with_content(&[ColoredWaterUnit::Green, ColoredWaterUnit::Blue]);
-    let mut dest_bottle = Bottle::with_content(&[ColoredWaterUnit::Red]);
-    dest_bottle.resize_in_place(4);
+    let mut source_bottle = bottle!(Green, Blue);
+    let mut dest_bottle = bottle!([Red], 4);
 
     // Attempt to pour the top color run (1 blue) into destination, should fail due to mismatched colors
     let try_pour_result = source_bottle.try_pour_out(&mut dest_bottle);
@@ -172,18 +147,11 @@ fn test_bottle_pour_out() {
             PourInError::MismatchedColors
         ))
     );
-    assert_eq!(
-        source_bottle.get_content(),
-        &[ColoredWaterUnit::Green, ColoredWaterUnit::Blue]
-    );
-    assert_eq!(dest_bottle.get_content(), &[ColoredWaterUnit::Red]);
+    assert_eq!(source_bottle.get_content(), bottle_content!(Green, Blue));
+    assert_eq!(dest_bottle.get_content(), bottle_content!(Red));
 
-    let mut source_bottle = Bottle::with_content(&[
-        ColoredWaterUnit::Red,
-        ColoredWaterUnit::Blue,
-        ColoredWaterUnit::Green
-    ]);
-    let mut dest_bottle = Bottle::with_content(&[ColoredWaterUnit::Green]);
+    let mut source_bottle = bottle!(Red, Blue, Green);
+    let mut dest_bottle = bottle!(Green);
 
     // Attempt to pour the top color run (1 green) into destination, should fail due to no space
     let try_pour_result = source_bottle.try_pour_out(&mut dest_bottle);
@@ -193,11 +161,7 @@ fn test_bottle_pour_out() {
     );
     assert_eq!(
         source_bottle.get_content(),
-        &[
-            ColoredWaterUnit::Red,
-            ColoredWaterUnit::Blue,
-            ColoredWaterUnit::Green
-        ]
+        bottle_content!(Red, Blue, Green)
     );
     assert_eq!(dest_bottle.get_content(), &[ColoredWaterUnit::Green]);
 
