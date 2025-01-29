@@ -73,9 +73,9 @@ impl From<&ColoredWaterUnit> for crossterm::style::Color {
                 b: 0x00
             },
             ColoredWaterUnit::Orange => Color::Rgb {
-                r: 0xFF,
-                g: 0x45,
-                b: 0x00
+                r: 0xFE,
+                g: 0x8A,
+                b: 0x18
             },
             ColoredWaterUnit::Pink => Color::Rgb {
                 r: 0xFF,

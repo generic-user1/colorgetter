@@ -31,5 +31,25 @@ fn main() -> io::Result<()> {
     println!("Gamestate after pour:");
     new_gamestate.queue_display(&mut ostream)?;
     ostream.flush()?;
+
+    println!("All colors:");
+    let color_sampler = GameState {
+        bottles: vec![
+            bottle!(Red),
+            bottle!(Maroon),
+            bottle!(Lime),
+            bottle!(Green),
+            bottle!(Aqua),
+            bottle!(Blue),
+            bottle!(Yellow),
+            bottle!(Orange),
+            bottle!(Pink),
+            bottle!(Tan),
+            bottle!(Brown),
+        ]
+    };
+
+    color_sampler.queue_display(&mut ostream)?;
+    ostream.flush()?;
     Ok(())
 }
