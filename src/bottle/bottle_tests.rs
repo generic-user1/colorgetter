@@ -124,8 +124,10 @@ fn test_bottle_pour_out() {
     let mut dest_bottle = Bottle::new(2);
 
     // Pour the top color run (2 reds) into destination, should be successful
+    let test_pour_result = source_bottle.test_pour_out(&dest_bottle);
     let try_pour_result = source_bottle.try_pour_out(&mut dest_bottle);
     assert_eq!(try_pour_result, Ok(()));
+    assert_eq!(test_pour_result, try_pour_result);
     assert_eq!(
         source_bottle.get_content(),
         bottle_content!(Green, Blue, Red)
@@ -136,6 +138,7 @@ fn test_bottle_pour_out() {
     let mut dest_bottle = bottle!([Red], 4);
 
     // Attempt to pour the top color run (1 blue) into destination, should fail due to mismatched colors
+    let test_pour_result = source_bottle.test_pour_out(&dest_bottle);
     let try_pour_result = source_bottle.try_pour_out(&mut dest_bottle);
     assert_eq!(
         try_pour_result,
@@ -143,6 +146,7 @@ fn test_bottle_pour_out() {
             PourInError::MismatchedColors
         ))
     );
+    assert_eq!(test_pour_result, try_pour_result);
     assert_eq!(source_bottle.get_content(), bottle_content!(Green, Blue));
     assert_eq!(dest_bottle.get_content(), bottle_content!(Red));
 
@@ -150,11 +154,13 @@ fn test_bottle_pour_out() {
     let mut dest_bottle = bottle!(Green);
 
     // Attempt to pour the top color run (1 green) into destination, should fail due to no space
+    let test_pour_result = source_bottle.test_pour_out(&dest_bottle);
     let try_pour_result = source_bottle.try_pour_out(&mut dest_bottle);
     assert_eq!(
         try_pour_result,
         Err(PourOutError::DestinationError(PourInError::AlreadyFull))
     );
+    assert_eq!(test_pour_result, try_pour_result);
     assert_eq!(
         source_bottle.get_content(),
         bottle_content!(Red, Blue, Green)
@@ -165,6 +171,8 @@ fn test_bottle_pour_out() {
     let mut dest_bottle = Bottle::new(4);
 
     //Attempt to pour the top color run (nothing) into destination, should fail due to source bottle being empty
+    let test_pour_result = source_bottle.test_pour_out(&dest_bottle);
     let try_pour_result = source_bottle.try_pour_out(&mut dest_bottle);
     assert_eq!(try_pour_result, Err(PourOutError::Empty));
+    assert_eq!(test_pour_result, try_pour_result);
 }

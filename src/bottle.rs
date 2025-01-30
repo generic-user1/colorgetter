@@ -220,6 +220,22 @@ impl Bottle {
             Err(PourOutError::Empty)
         }
     }
+
+    /// Determine if running [Bottle::try_pour_out] would succeed given the current content of this bottle
+    /// and the provided `destination` Bottle, but don't actually modify the content of either bottle.
+    ///
+    /// Return value is the same as the return value of [Bottle::try_pour_out] would be if called on this same
+    /// bottle with the same `destination` Bottle.
+    pub fn test_pour_out(&self, destination: &Bottle) -> Result<(), PourOutError> {
+        if let Some(run_to_pour) = self.get_top_color_run() {
+            match destination.test_pour_in(run_to_pour) {
+                Ok(_) => Ok(()),
+                Err(e) => Err(e.into())
+            }
+        } else {
+            Err(PourOutError::Empty)
+        }
+    }
 }
 
 ///Reasons that pouring a [ColoredWaterRun] into a [Bottle] may fail.
