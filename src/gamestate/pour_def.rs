@@ -5,10 +5,10 @@ use crate::bottle::{Bottle, PourOutError};
 
 /// The operation of pouring content from one [Bottle] into another within the same [GameState].
 ///
-/// If a Pour exists, it is guaranteed to be a valid move.
+/// If a ValidPour exists, it is guaranteed to be valid; that is, [ValidPour::apply] can never fail.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Pour<'a> {
-    /// the GameState this Pour applies to
+pub struct ValidPour<'a> {
+    /// the GameState this ValidPour applies to
     source_gamestate: &'a GameState,
     /// the source bottle's index within the GameState
     source_bottle_index: usize,
@@ -16,8 +16,8 @@ pub struct Pour<'a> {
     dest_bottle_index: usize
 }
 
-impl<'a> Pour<'a> {
-    /// Try to create a new [Pour]
+impl<'a> ValidPour<'a> {
+    /// Try to create a new [ValidPour]
     pub fn try_new(
         source_gamestate: &'a GameState,
         source_bottle_index: usize,
@@ -45,14 +45,14 @@ impl<'a> Pour<'a> {
         }
 
         // if we reached this point, the pour is valid; construct and return
-        Ok(Pour {
+        Ok(ValidPour {
             source_gamestate,
             source_bottle_index,
             dest_bottle_index
         })
     }
 
-    /// Create a new [GameState] that is the result of applying this Pour to the source [GameState]
+    /// Create a new [GameState] that is the result of applying this ValidPour to the source [GameState]
     pub fn apply(&self) -> GameState {
         let mut new_game_state = self.source_gamestate.clone();
 
@@ -109,11 +109,11 @@ impl<'a> Pour<'a> {
     }
 }
 
-impl<'a> Display for Pour<'a> {
+impl<'a> Display for ValidPour<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Pour(from: {}, to: {})",
+            "ValidPour(from: {}, to: {})",
             self.source_bottle_index, self.dest_bottle_index
         )?;
 
@@ -121,7 +121,7 @@ impl<'a> Display for Pour<'a> {
     }
 }
 
-/// Reasons creating a [Pour] may fail
+/// Reasons creating a [ValidPour] may fail
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PourError {
     /// A provided bottle index doesn't point to a [Bottle] within the given [GameState];
@@ -141,7 +141,7 @@ impl From<PourOutError> for PourError {
     }
 }
 
-/// An iterator over all valid [Pour]s you could apply to a given [GameState]
+/// An iterator over all valid [ValidPour]s you could apply to a given [GameState]
 pub struct ValidPourIter<'a> {
     source_gamestate: &'a GameState,
     current_from_index: usize,
@@ -157,11 +157,11 @@ impl<'a> ValidPourIter<'a> {
     }
 }
 impl<'a> Iterator for ValidPourIter<'a> {
-    type Item = Pour<'a>;
+    type Item = ValidPour<'a>;
     fn next(&mut self) -> Option<Self::Item> {
         for from_index in self.current_from_index..self.source_gamestate.bottles.len() {
             for to_index in self.current_to_index..self.source_gamestate.bottles.len() {
-                if let Ok(pour) = Pour::try_new(self.source_gamestate, from_index, to_index) {
+                if let Ok(pour) = ValidPour::try_new(self.source_gamestate, from_index, to_index) {
                     self.current_from_index = from_index;
                     // our "current" to_index needs to be the next index we'll use, so the index we just used plus 1
                     // note that if this exceeds the bounds of our current_to_index..bottles.len() range, that range will be

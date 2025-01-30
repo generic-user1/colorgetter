@@ -90,7 +90,7 @@ impl GameState {
         true
     }
 
-    /// Returns an iterator over all valid [Pour](crate::gamestate::Pour)s you could apply to this GameState
+    /// Returns an iterator over all [ValidPour](crate::gamestate::ValidPour)s you could apply to this GameState
     pub fn iter_pours(&self) -> ValidPourIter {
         ValidPourIter::new(self)
     }

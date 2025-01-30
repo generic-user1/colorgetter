@@ -21,21 +21,21 @@ fn test_valid_pour_iter() {
     assert_eq!(
         all_pours,
         HashSet::from([
-            Pour::try_new(&first_gamestate, 0, 1).unwrap(),
-            Pour::try_new(&first_gamestate, 1, 0).unwrap(),
-            Pour::try_new(&first_gamestate, 2, 4).unwrap(),
-            Pour::try_new(&first_gamestate, 4, 2).unwrap()
+            ValidPour::try_new(&first_gamestate, 0, 1).unwrap(),
+            ValidPour::try_new(&first_gamestate, 1, 0).unwrap(),
+            ValidPour::try_new(&first_gamestate, 2, 4).unwrap(),
+            ValidPour::try_new(&first_gamestate, 4, 2).unwrap()
         ])
     );
 
-    let second_gamestate = Pour::try_new(&first_gamestate, 0, 1).unwrap().apply();
+    let second_gamestate = ValidPour::try_new(&first_gamestate, 0, 1).unwrap().apply();
     let all_pours: HashSet<_> = second_gamestate.iter_pours().collect();
     assert_eq!(
         all_pours,
         HashSet::from([
-            Pour::try_new(&second_gamestate, 1, 0).unwrap(),
-            Pour::try_new(&second_gamestate, 2, 4).unwrap(),
-            Pour::try_new(&second_gamestate, 4, 2).unwrap(),
+            ValidPour::try_new(&second_gamestate, 1, 0).unwrap(),
+            ValidPour::try_new(&second_gamestate, 2, 4).unwrap(),
+            ValidPour::try_new(&second_gamestate, 4, 2).unwrap(),
         ])
     );
 }

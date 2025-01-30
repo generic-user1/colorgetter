@@ -2,7 +2,7 @@ use colorgetter::{
     bottle,
     bottle::Bottle,
     colored_water::ColoredWaterUnit,
-    gamestate::{GameState, Pour}
+    gamestate::{GameState, ValidPour}
 };
 use std::io::{self, stdout, Write};
 
@@ -21,19 +21,19 @@ fn main() -> io::Result<()> {
     base_gamestate.queue_display(&mut ostream)?;
     ostream.flush()?;
 
-    println!("All possible pours:");
+    println!("All valid pours:");
     for pour in base_gamestate.iter_pours() {
         println!("{}", pour);
     }
 
-    let pour = Pour::try_new(&base_gamestate, 0, 1).expect("Pour failed to be created");
+    let pour = ValidPour::try_new(&base_gamestate, 0, 1).expect("Pour failed to be created");
     println!("Selected pour: {}", pour);
     let new_gamestate = pour.apply();
 
     println!("Gamestate after pour:");
     new_gamestate.queue_display(&mut ostream)?;
     ostream.flush()?;
-    println!("All possible pours for new gamestate:");
+    println!("All valid pours for new gamestate:");
     for pour in new_gamestate.iter_pours() {
         println!("{}", pour);
     }
