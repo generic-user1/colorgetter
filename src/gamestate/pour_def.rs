@@ -38,7 +38,7 @@ impl<'a> Pour<'a> {
             .ok_or(PourError::MissingBottle)?;
 
         // test whether the pour would succeed by copying the two bottles and performing the pour on those copies
-        if let Err(e) = source_bottle.clone().try_pour_out(&mut dest_bottle.clone()) {
+        if let Err(e) = source_bottle.test_pour_out(dest_bottle) {
             return Err(e.into());
         }
 
