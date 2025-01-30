@@ -111,17 +111,11 @@ impl<'a> ValidPour<'a> {
 
 impl<'a> Display for ValidPour<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "ValidPour(from: {}, to: {})",
-            self.source_bottle_index, self.dest_bottle_index
-        )?;
-
-        Ok(())
+        write!(f, "Valid{}", Pour::from(self))
     }
 }
 
-/// Reasons creating a [ValidPour] may fail
+/// Reasons creating a [ValidPour] or running [Pour::try_apply] may fail
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PourError {
     /// A provided bottle index doesn't point to a [Bottle] within the given [GameState];
@@ -174,5 +168,64 @@ impl<'a> Iterator for ValidPourIter<'a> {
             self.current_to_index = 0;
         }
         None
+    }
+}
+
+/// The operation of pouring content from one [Bottle] into another within a hypothetical [GameState] that
+/// may or may not yet exist.
+///
+/// Similar to [ValidPour], but does not hold a reference to a specific [GameState]. It is therefore not guaranteed to be valid,
+/// but can be created before the [GameState] it is meant to apply to exists.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Pour {
+    /// The source bottle's index within a [GameState]
+    pub source_bottle_index: usize,
+    /// The dest bottle's index within a [GameState]
+    pub dest_bottle_index: usize
+}
+impl Pour {
+    /// Attempt to create a [ValidPour] from this Pour in combination with a [GameState]
+    ///
+    /// Similar to [ValidPour::try_new]
+    pub fn try_into_valid<'a>(
+        &self,
+        source_gamestate: &'a GameState
+    ) -> Result<ValidPour<'a>, PourError> {
+        ValidPour::try_new(
+            source_gamestate,
+            self.source_bottle_index,
+            self.dest_bottle_index
+        )
+    }
+
+    /// Attempt to create a new [GameState] that is the result of applying this Pour to the given [GameState]
+    ///
+    /// Similar to [ValidPour::apply]
+    pub fn try_apply(&self, source_gamestate: &GameState) -> Result<GameState, PourError> {
+        let valid_pour = self.try_into_valid(source_gamestate)?;
+        Ok(valid_pour.apply())
+    }
+}
+impl From<&ValidPour<'_>> for Pour {
+    fn from(value: &ValidPour) -> Self {
+        Self {
+            source_bottle_index: value.source_bottle_index,
+            dest_bottle_index: value.dest_bottle_index
+        }
+    }
+}
+impl From<ValidPour<'_>> for Pour {
+    fn from(value: ValidPour<'_>) -> Self {
+        Pour::from(&value)
+    }
+}
+
+impl Display for Pour {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Pour(from: {}, to: {})",
+            self.source_bottle_index, self.dest_bottle_index
+        )
     }
 }

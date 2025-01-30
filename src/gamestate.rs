@@ -4,7 +4,7 @@ mod gamestate_def;
 pub use gamestate_def::GameState;
 
 mod pour_def;
-pub use pour_def::{PourError, ValidPour, ValidPourIter};
+pub use pour_def::{Pour, PourError, ValidPour, ValidPourIter};
 
 #[cfg(test)]
 mod pour_tests;
