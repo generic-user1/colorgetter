@@ -14,23 +14,29 @@ fn main() -> io::Result<()> {
             bottle!([Orange, Green, Red], 4),
             bottle!([Yellow, Maroon], 3),
             bottle!([Brown, Lime, Aqua, Aqua], 4),
+            bottle!([Maroon, Maroon], 4),
         ]
     };
     let mut ostream = stdout();
     base_gamestate.queue_display(&mut ostream)?;
     ostream.flush()?;
 
+    println!("All possible pours:");
+    for pour in base_gamestate.iter_pours() {
+        println!("{}", pour);
+    }
+
     let pour = Pour::try_new(&base_gamestate, 0, 1).expect("Pour failed to be created");
-    println!(
-        "Pour bottle {} into bottle {}",
-        pour.get_source_index(),
-        pour.get_dest_index()
-    );
+    println!("Selected pour: {}", pour);
     let new_gamestate = pour.apply();
 
     println!("Gamestate after pour:");
     new_gamestate.queue_display(&mut ostream)?;
     ostream.flush()?;
+    println!("All possible pours for new gamestate:");
+    for pour in new_gamestate.iter_pours() {
+        println!("{}", pour);
+    }
 
     println!("All colors:");
     let color_sampler = GameState {

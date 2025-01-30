@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::bottle::{Bottle, PourOutError};
 use crate::gamestate::GameState;
 
@@ -107,6 +109,18 @@ impl<'a> Pour<'a> {
     }
 }
 
+impl<'a> Display for Pour<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Pour(from: {}, to: {})",
+            self.source_bottle_index, self.dest_bottle_index
+        )?;
+
+        Ok(())
+    }
+}
+
 /// Reasons creating a [Pour] may fail
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PourError {
@@ -124,5 +138,41 @@ pub enum PourError {
 impl From<PourOutError> for PourError {
     fn from(value: PourOutError) -> Self {
         PourError::InvalidPour(value)
+    }
+}
+
+/// An iterator over all valid [Pour]s you could apply to a given [GameState]
+pub struct ValidPourIter<'a> {
+    source_gamestate: &'a GameState,
+    current_from_index: usize,
+    current_to_index: usize
+}
+impl<'a> ValidPourIter<'a> {
+    pub fn new(source_gamestate: &'a GameState) -> Self {
+        Self {
+            source_gamestate,
+            current_from_index: 0,
+            current_to_index: 0
+        }
+    }
+}
+impl<'a> Iterator for ValidPourIter<'a> {
+    type Item = Pour<'a>;
+    fn next(&mut self) -> Option<Self::Item> {
+        for from_index in self.current_from_index..self.source_gamestate.bottles.len() {
+            for to_index in self.current_to_index..self.source_gamestate.bottles.len() {
+                if let Ok(pour) = Pour::try_new(self.source_gamestate, from_index, to_index) {
+                    self.current_from_index = from_index;
+                    // our "current" to_index needs to be the next index we'll use, so the index we just used plus 1
+                    // note that if this exceeds the bounds of our current_to_index..bottles.len() range, that range will be
+                    // empty; calling next will therefore cause from_index to increment instead
+                    self.current_to_index = to_index.saturating_add(1);
+                    return Some(pour);
+                }
+            }
+            //reset to_index just before going through loop with new from_index
+            self.current_to_index = 0;
+        }
+        None
     }
 }

@@ -1,4 +1,4 @@
-use crate::bottle::Bottle;
+use crate::{bottle::Bottle, gamestate::ValidPourIter};
 use crossterm::{
     cursor::{MoveDown, MoveLeft, MoveRight},
     style::{ContentStyle, Print, PrintStyledContent, StyledContent},
@@ -87,6 +87,11 @@ impl GameState {
             }
         }
         true
+    }
+
+    /// Returns an iterator over all valid [Pour](crate::gamestate::Pour)s you could apply to this GameState
+    pub fn iter_pours(&self) -> ValidPourIter {
+        ValidPourIter::new(self)
     }
 }
 
