@@ -75,6 +75,19 @@ impl GameState {
 
         Ok(())
     }
+
+    /// Returns whether this GameState represents a finished game
+    ///
+    /// The game is finished when all bottles are either completely empty or
+    /// completely full of a single color
+    pub fn is_finished(&self) -> bool {
+        for bottle in &self.bottles {
+            if !(bottle.is_in_final_state() || bottle.get_content().is_empty()) {
+                return false;
+            }
+        }
+        true
+    }
 }
 
 // trait implementations

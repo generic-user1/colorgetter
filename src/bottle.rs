@@ -44,7 +44,7 @@ impl Bottle {
     }
 
     /// Return the capacity of this Bottle.
-    pub fn get_capacity(&self) -> usize {
+    pub const fn get_capacity(&self) -> usize {
         self.capacity
     }
 
@@ -235,6 +235,18 @@ impl Bottle {
         } else {
             Err(PourOutError::Empty)
         }
+    }
+
+    /// Determine if this Bottle is in its final state
+    ///
+    /// "Final state" in this context means the bottle is in its final possible state:
+    /// entirely full of a single color.
+    ///
+    /// Note: entirely empty bottles are not considered in their final state by this function; although
+    /// they can be a part of a finished [GameState](crate::gamestate::GameState), they
+    /// can also still be poured into (and therefore, are not definitively in their final state).
+    pub fn is_in_final_state(&self) -> bool {
+        ColoredWaterRun::try_from(self.get_content()).is_ok_and(|run| run.size == self.capacity)
     }
 }
 
