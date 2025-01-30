@@ -112,6 +112,20 @@ pub enum ColoredWaterRunError {
     MismatchedColors
 }
 
+impl<const N: usize> TryFrom<[ColoredWaterUnit; N]> for ColoredWaterRun {
+    type Error = ColoredWaterRunError;
+    fn try_from(value: [ColoredWaterUnit; N]) -> Result<Self, Self::Error> {
+        ColoredWaterRun::try_from(&value)
+    }
+}
+
+impl<const N: usize> TryFrom<&[ColoredWaterUnit; N]> for ColoredWaterRun {
+    type Error = ColoredWaterRunError;
+    fn try_from(value: &[ColoredWaterUnit; N]) -> Result<Self, Self::Error> {
+        ColoredWaterRun::try_from(value.as_ref())
+    }
+}
+
 impl TryFrom<&[ColoredWaterUnit]> for ColoredWaterRun {
     type Error = ColoredWaterRunError;
     fn try_from(value: &[ColoredWaterUnit]) -> Result<Self, Self::Error> {

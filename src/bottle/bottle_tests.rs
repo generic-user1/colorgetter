@@ -73,10 +73,9 @@ fn test_bottle_pour_in() {
     assert_eq!(bottle.get_content(), bottle_content!(Red));
 
     // Pour one unit of Red, should be fully successful
-    let try_pour_result = bottle.try_pour_in(ColoredWaterRun {
-        color: ColoredWaterUnit::Red,
-        size: 1
-    });
+    let content = bottle_content!(Red).try_into().unwrap();
+    let test_pour_result = bottle.test_pour_in(content);
+    let try_pour_result = bottle.try_pour_in(content);
     assert_eq!(
         try_pour_result,
         Ok(ColoredWaterRun {
@@ -84,22 +83,21 @@ fn test_bottle_pour_in() {
             size: 0
         })
     );
+    assert_eq!(test_pour_result, try_pour_result);
     assert_eq!(bottle.get_content(), bottle_content!(Red, Red));
 
     // Pour in 1 unit of Aqua, should be unsuccessful due to mismatched colors
-    let try_pour_result = bottle.try_pour_in(ColoredWaterRun {
-        color: ColoredWaterUnit::Aqua,
-        size: 1
-    });
+    let content = bottle_content!(Aqua).try_into().unwrap();
+    let test_pour_result = bottle.test_pour_in(content);
+    let try_pour_result = bottle.try_pour_in(content);
     assert_eq!(try_pour_result, Err(PourInError::MismatchedColors));
+    assert_eq!(test_pour_result, try_pour_result);
     assert_eq!(bottle.get_content(), bottle_content!(Red, Red));
 
     // Pour in 4 units of Red, should be partially successful (2 poured in, 2 left over)
-    let try_pour_result = bottle.try_pour_in(ColoredWaterRun {
-        color: ColoredWaterUnit::Red,
-        size: 4
-    });
-
+    let content = bottle_content!(Red, Red, Red, Red).try_into().unwrap();
+    let test_pour_result = bottle.test_pour_in(content);
+    let try_pour_result = bottle.try_pour_in(content);
     assert_eq!(
         try_pour_result,
         Ok(ColoredWaterRun {
@@ -107,17 +105,15 @@ fn test_bottle_pour_in() {
             size: 2
         })
     );
-
+    assert_eq!(test_pour_result, try_pour_result);
     assert_eq!(bottle.get_content(), bottle_content!(Red, Red, Red, Red));
 
     // Pour in 1 unit of Red, should be unsuccessful due to bottle already being full
-    let try_pour_result = bottle.try_pour_in(ColoredWaterRun {
-        color: ColoredWaterUnit::Red,
-        size: 1
-    });
-
+    let content = bottle_content!(Red).try_into().unwrap();
+    let test_pour_result = bottle.test_pour_in(content);
+    let try_pour_result = bottle.try_pour_in(content);
     assert_eq!(try_pour_result, Err(PourInError::AlreadyFull));
-
+    assert_eq!(test_pour_result, try_pour_result);
     assert_eq!(bottle.get_content(), bottle_content!(Red, Red, Red, Red));
 }
 

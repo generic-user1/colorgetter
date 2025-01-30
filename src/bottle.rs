@@ -170,6 +170,34 @@ impl Bottle {
         }
     }
 
+    /// Determine if running [Bottle::try_pour_in] would succeed given the current content of this bottle
+    /// and the provided `content_to_pour`, but don't actually modify the content of this bottle.
+    ///
+    /// Return value is the same as the return value of [Bottle::try_pour_in] would be if called on this same
+    /// bottle with the same `content_to_pour`
+    pub fn test_pour_in(
+        &self,
+        content_to_pour: ColoredWaterRun
+    ) -> Result<ColoredWaterRun, PourInError> {
+        if let Some(top_color) = self.get_top_color() {
+            if top_color != content_to_pour.color {
+                return Err(PourInError::MismatchedColors);
+            }
+        }
+
+        let empty_space = self.capacity - self.content.len();
+        if empty_space == 0 {
+            return Err(PourInError::AlreadyFull);
+        }
+
+        // we have verified this pour would work, now calculate the number
+        // of units in content_to_pour that we can't accept and return
+        Ok(ColoredWaterRun {
+            color: content_to_pour.color,
+            size: content_to_pour.size.saturating_sub(empty_space)
+        })
+    }
+
     /// Attempt to pour a [ColoredWaterRun] out of this Bottle.
     ///
     /// If this is successful, will return `Ok(())`.
