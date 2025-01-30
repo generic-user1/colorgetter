@@ -1,12 +1,12 @@
 use std::fmt::Display;
 
+use super::*;
 use crate::bottle::{Bottle, PourOutError};
-use crate::gamestate::GameState;
 
 /// The operation of pouring content from one [Bottle] into another within the same [GameState].
 ///
 /// If a Pour exists, it is guaranteed to be a valid move.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Pour<'a> {
     /// the GameState this Pour applies to
     source_gamestate: &'a GameState,

@@ -1,4 +1,5 @@
-use crate::{bottle::Bottle, gamestate::ValidPourIter};
+use super::*;
+use crate::bottle::Bottle;
 use crossterm::{
     cursor::{MoveDown, MoveLeft, MoveRight},
     style::{ContentStyle, Print, PrintStyledContent, StyledContent},
@@ -9,7 +10,7 @@ use std::io;
 /// The state a particular game is in
 ///
 /// That is, represents what bottles exist and what order they're in.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct GameState {
     pub bottles: Vec<Bottle>
 }

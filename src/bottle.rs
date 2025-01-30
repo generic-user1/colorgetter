@@ -12,7 +12,7 @@ mod bottle_tests;
 ///
 /// Note that the content may be shorter than the capacity (meaning the bottle has space for more content), but
 /// will never be longer.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Bottle {
     capacity: usize,
     content: Vec<ColoredWaterUnit>
