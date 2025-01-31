@@ -33,13 +33,8 @@ fn main() -> io::Result<()> {
         let end = Instant::now();
         let duration = end.duration_since(start);
         println!(
-            "Solution found ({} pour{}) in {:?}",
+            "{} pour solution found in {:?}",
             solution.get_pours().len(),
-            if solution.get_pours().len() == 1 {
-                ""
-            } else {
-                "s"
-            },
             duration
         );
         let mut working_gamestate = base_gamestate.clone();
