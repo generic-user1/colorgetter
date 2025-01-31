@@ -7,19 +7,19 @@ use crate::bottle::{Bottle, PourOutError};
 ///
 /// If a ValidPour exists, it is guaranteed to be valid; that is, [ValidPour::apply] can never fail.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ValidPour<'a> {
+pub struct ValidPour<'a, const N: usize> {
     /// the GameState this ValidPour applies to
-    source_gamestate: &'a GameState,
+    source_gamestate: &'a GameState<N>,
     /// the source bottle's index within the GameState
     source_bottle_index: usize,
     /// the dest bottle's index within the GameState
     dest_bottle_index: usize
 }
 
-impl<'a> ValidPour<'a> {
+impl<'a, const N: usize> ValidPour<'a, N> {
     /// Try to create a new [ValidPour]
     pub fn try_new(
-        source_gamestate: &'a GameState,
+        source_gamestate: &'a GameState<N>,
         source_bottle_index: usize,
         dest_bottle_index: usize
     ) -> Result<Self, PourError> {
@@ -53,7 +53,7 @@ impl<'a> ValidPour<'a> {
     }
 
     /// Create a new [GameState] that is the result of applying this ValidPour to the source [GameState]
-    pub fn apply(&self) -> GameState {
+    pub fn apply(&self) -> GameState<N> {
         let mut new_game_state = self.source_gamestate.clone();
 
         let split_on_source = self.source_bottle_index < self.dest_bottle_index;
@@ -84,7 +84,7 @@ impl<'a> ValidPour<'a> {
         new_game_state
     }
 
-    pub fn get_source_gamestate(&self) -> &GameState {
+    pub fn get_source_gamestate(&self) -> &GameState<N> {
         self.source_gamestate
     }
 
@@ -109,7 +109,7 @@ impl<'a> ValidPour<'a> {
     }
 }
 
-impl<'a> Display for ValidPour<'a> {
+impl<'a, const N: usize> Display for ValidPour<'a, N> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Valid{}", Pour::from(self))
     }
@@ -136,13 +136,13 @@ impl From<PourOutError> for PourError {
 }
 
 /// An iterator over all valid [ValidPour]s you could apply to a given [GameState]
-pub struct ValidPourIter<'a> {
-    source_gamestate: &'a GameState,
+pub struct ValidPourIter<'a, const N: usize> {
+    source_gamestate: &'a GameState<N>,
     current_from_index: usize,
     current_to_index: usize
 }
-impl<'a> ValidPourIter<'a> {
-    pub fn new(source_gamestate: &'a GameState) -> Self {
+impl<'a, const N: usize> ValidPourIter<'a, N> {
+    pub fn new(source_gamestate: &'a GameState<N>) -> Self {
         Self {
             source_gamestate,
             current_from_index: 0,
@@ -150,8 +150,8 @@ impl<'a> ValidPourIter<'a> {
         }
     }
 }
-impl<'a> Iterator for ValidPourIter<'a> {
-    type Item = ValidPour<'a>;
+impl<'a, const N: usize> Iterator for ValidPourIter<'a, N> {
+    type Item = ValidPour<'a, N>;
     fn next(&mut self) -> Option<Self::Item> {
         for from_index in self.current_from_index..self.source_gamestate.bottles.len() {
             for to_index in self.current_to_index..self.source_gamestate.bottles.len() {
@@ -187,10 +187,10 @@ impl Pour {
     /// Attempt to create a [ValidPour] from this Pour in combination with a [GameState]
     ///
     /// Similar to [ValidPour::try_new]
-    pub fn try_into_valid<'a>(
+    pub fn try_into_valid<'a, const N: usize>(
         &self,
-        source_gamestate: &'a GameState
-    ) -> Result<ValidPour<'a>, PourError> {
+        source_gamestate: &'a GameState<N>
+    ) -> Result<ValidPour<'a, N>, PourError> {
         ValidPour::try_new(
             source_gamestate,
             self.source_bottle_index,
@@ -201,21 +201,24 @@ impl Pour {
     /// Attempt to create a new [GameState] that is the result of applying this Pour to the given [GameState]
     ///
     /// Similar to [ValidPour::apply]
-    pub fn try_apply(&self, source_gamestate: &GameState) -> Result<GameState, PourError> {
+    pub fn try_apply<const N: usize>(
+        &self,
+        source_gamestate: &GameState<N>
+    ) -> Result<GameState<N>, PourError> {
         let valid_pour = self.try_into_valid(source_gamestate)?;
         Ok(valid_pour.apply())
     }
 }
-impl From<&ValidPour<'_>> for Pour {
-    fn from(value: &ValidPour) -> Self {
+impl<const N: usize> From<&ValidPour<'_, N>> for Pour {
+    fn from(value: &ValidPour<N>) -> Self {
         Self {
             source_bottle_index: value.source_bottle_index,
             dest_bottle_index: value.dest_bottle_index
         }
     }
 }
-impl From<ValidPour<'_>> for Pour {
-    fn from(value: ValidPour<'_>) -> Self {
+impl<const N: usize> From<ValidPour<'_, N>> for Pour {
+    fn from(value: ValidPour<'_, N>) -> Self {
         Pour::from(&value)
     }
 }

@@ -6,12 +6,12 @@ use crate::{bottle, bottle::Bottle, colored_water::ColoredWaterUnit};
 #[test]
 fn test_valid_pour_iter() {
     let first_gamestate = GameState {
-        bottles: vec![
+        bottles: [
             bottle!([Red, Red, Red], 4),
             bottle!([Orange, Green, Red], 4),
             bottle!([Yellow, Maroon], 3),
             bottle!([Brown, Lime, Aqua, Aqua], 4),
-            bottle!([Maroon, Maroon], 4),
+            bottle!([Maroon, Maroon], 4)
         ]
     };
 

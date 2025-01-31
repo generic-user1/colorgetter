@@ -11,11 +11,11 @@ use std::io;
 ///
 /// That is, represents what bottles exist and what order they're in.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct GameState {
-    pub bottles: Vec<Bottle>
+pub struct GameState<const N: usize> {
+    pub bottles: [Bottle; N]
 }
 
-impl GameState {
+impl<const N: usize> GameState<N> {
     /// Queues the display of this GameState for the given `ostream` (typically [std::io::stdout])
     ///
     /// Does not flush; the caller must call flush on `ostream` in order to actually display the GameState.
@@ -91,28 +91,7 @@ impl GameState {
     }
 
     /// Returns an iterator over all [ValidPour](crate::gamestate::ValidPour)s you could apply to this GameState
-    pub fn iter_pours(&self) -> ValidPourIter {
+    pub fn iter_pours(&self) -> ValidPourIter<N> {
         ValidPourIter::new(self)
-    }
-}
-
-// trait implementations
-impl From<Vec<Bottle>> for GameState {
-    fn from(value: Vec<Bottle>) -> Self {
-        Self { bottles: value }
-    }
-}
-
-impl From<&[Bottle]> for GameState {
-    fn from(value: &[Bottle]) -> Self {
-        Self {
-            bottles: value.into()
-        }
-    }
-}
-
-impl From<GameState> for Vec<Bottle> {
-    fn from(value: GameState) -> Self {
-        value.bottles
     }
 }

@@ -16,14 +16,14 @@ use crate::gamestate::{GameState, Pour};
 /// Although represented as Pours, each Pour is guaranteed
 /// to be valid for the result of the previous Pour (except the first Pour, which
 /// is instead guaranteed to be valid for the provided `base_gamestate`)
-pub struct Solution<'a> {
-    base_gamestate: &'a GameState,
+pub struct Solution<'a, const N: usize> {
+    base_gamestate: &'a GameState<N>,
     pours: VecDeque<Pour>
 }
 
-impl<'a> Solution<'a> {
+impl<'a, const N: usize> Solution<'a, N> {
     /// Try to find and return a Solution to the given GameState. If no solution can be found, return `None`.
-    pub fn try_new(base_gamestate: &'a GameState) -> Option<Self> {
+    pub fn try_new(base_gamestate: &'a GameState<N>) -> Option<Self> {
         Self::find_solving_pours(base_gamestate).map(|pours| Self {
             base_gamestate,
             pours
@@ -34,14 +34,14 @@ impl<'a> Solution<'a> {
     /// when applied in order, leads to a solution.
     ///
     /// Returns None if there are no solutions.
-    fn find_solving_pours(gamestate_to_solve: &GameState) -> Option<VecDeque<Pour>> {
+    fn find_solving_pours(gamestate_to_solve: &GameState<N>) -> Option<VecDeque<Pour>> {
         const PRINT_TIMING_METRICS: bool = true;
 
         // only generate GameStates once and reference them from here by index.
         // GameStateIdx is an alias to some type we can use to uniquely index into this HashMap;
         // We use an alias to make it more clear what we're doing
         type GameStateIdx = usize;
-        let mut all_gamestates: BiHashMap<GameStateIdx, GameState> = BiHashMap::new();
+        let mut all_gamestates: BiHashMap<GameStateIdx, GameState<N>> = BiHashMap::new();
         all_gamestates.insert(0, gamestate_to_solve.clone()); // index is 0
 
         //map from gamestate to (source_gamestate, pour_for_source_gamestate)
@@ -105,7 +105,7 @@ impl<'a> Solution<'a> {
 
             // the following could theoretically be done in one loop, but borrow rules prevent this.
             // instead of just cloning, we first create a vector of all new entries that will go into all_gamestates
-            let mut new_pours: Vec<(GameState, Pour)> = Vec::new();
+            let mut new_pours: Vec<(GameState<N>, Pour)> = Vec::new();
             for valid_pour in gamestate_to_try.iter_pours() {
                 let new_gs = valid_pour.apply();
                 // only check this gamestate if we haven't already checked it
@@ -132,7 +132,7 @@ impl<'a> Solution<'a> {
         None
     }
 
-    pub fn get_base_gamestate(&self) -> &GameState {
+    pub fn get_base_gamestate(&self) -> &GameState<N> {
         self.base_gamestate
     }
 

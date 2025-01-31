@@ -10,7 +10,7 @@ use std::time::Instant;
 fn main() -> io::Result<()> {
     println!("Base gamestate:");
     let base_gamestate = GameState {
-        bottles: vec![
+        bottles: [
             bottle!([Orange, Maroon, Yellow, Tan], 4),
             bottle!([Aqua, Maroon, Pink, Pink], 4),
             bottle!([Orange, Aqua, Orange, Green], 4),
@@ -20,7 +20,7 @@ fn main() -> io::Result<()> {
             bottle!([Orange, Pink, Maroon, Yellow], 4),
             bottle!([Maroon, Green, Green, Tan], 4),
             bottle!([], 4),
-            bottle!([], 4),
+            bottle!([], 4)
         ]
     };
     let mut ostream = stdout();
