@@ -22,9 +22,25 @@ pub struct Solution<'a, const N: usize> {
 }
 
 impl<'a, const N: usize> Solution<'a, N> {
-    /// Try to find and return a Solution to the given GameState. If no solution can be found, return `None`.
-    pub fn try_new(base_gamestate: &'a GameState<N>) -> Option<Self> {
-        Self::find_solving_pours(base_gamestate).map(|pours| Self {
+    /// Try to find and return the shortest possible Solution to the given GameState. If no solution can be found, return `None`.
+    ///
+    /// May take a relatively long time and a lot of memory, but will always return a Solution
+    /// with the fewest possible pours. If you want a solution faster and don't care if it uses more pours
+    /// than necessary, see [Solution::try_new_fast_find]
+    pub fn try_new_shortest(base_gamestate: &'a GameState<N>) -> Option<Self> {
+        Self::find_solving_pours_breadth_first(base_gamestate).map(|pours| Self {
+            base_gamestate,
+            pours
+        })
+    }
+
+    /// Try to find and return any Solution to the given GameState. If no solution can be found, return `None`.
+    ///
+    /// Solution returned may have many more Pours than necessary, but will almost always
+    /// take relatively little time and memory to compute. If you want a short solution and don't care
+    /// if it takes more time and memory, see [Solution::try_new_shortest]
+    pub fn try_new_fast_find(base_gamestate: &'a GameState<N>) -> Option<Self> {
+        Self::find_solving_pours_depth_first(base_gamestate).map(|pours| Self {
             base_gamestate,
             pours
         })
@@ -34,7 +50,9 @@ impl<'a, const N: usize> Solution<'a, N> {
     /// when applied in order, leads to a solution.
     ///
     /// Returns None if there are no solutions.
-    fn find_solving_pours(gamestate_to_solve: &GameState<N>) -> Option<VecDeque<Pour>> {
+    fn find_solving_pours_breadth_first(
+        gamestate_to_solve: &GameState<N>
+    ) -> Option<VecDeque<Pour>> {
         const PRINT_TIMING_METRICS: bool = true;
 
         // only generate GameStates once and reference them from here by index.
@@ -142,6 +160,64 @@ impl<'a, const N: usize> Solution<'a, N> {
                 end_time.duration_since(overall_start_time)
             );
         }
+        None
+    }
+
+    fn find_solving_pours_depth_first(gamestate_to_solve: &GameState<N>) -> Option<VecDeque<Pour>> {
+        // only generate GameStates once and reference them from here by index.
+        // GameStateIdx is an alias to some type we can use to uniquely index into this HashMap;
+        // We use an alias to make it more clear what we're doing
+        type GameStateIdx = usize;
+        let mut all_gamestates: BiHashMap<GameStateIdx, GameState<N>> = BiHashMap::new();
+        all_gamestates.insert(0, gamestate_to_solve.clone()); // index is 0
+
+        //map from gamestate to (source_gamestate, pour_for_source_gamestate)
+        //this allows us to track gamestates
+        let mut tried_gamestates: HashMap<GameStateIdx, (GameStateIdx, Pour)> = HashMap::new();
+        let mut gamestates_to_try: Vec<GameStateIdx> = Vec::new();
+        gamestates_to_try.push(0); // add our starting gamestate
+
+        while let Some(gamestate_to_try_idx) = gamestates_to_try.pop() {
+            let gamestate_to_try = all_gamestates.get_by_left(&gamestate_to_try_idx).unwrap();
+            if gamestate_to_try.is_finished() {
+                let mut returnable = VecDeque::new();
+                let mut gs = gamestate_to_try_idx;
+                loop {
+                    if let Some((source_gs_idx, pour)) = tried_gamestates.remove(&gs) {
+                        returnable.push_front(pour.clone());
+                        gs = source_gs_idx
+                    } else {
+                        return Some(returnable);
+                    }
+                }
+            }
+
+            // the following could theoretically be done in one loop, but borrow rules prevent this.
+            // instead of just cloning, we first create a vector of all new entries that will go into all_gamestates
+            let mut new_pours: Vec<(GameState<N>, Pour)> = Vec::new();
+            for valid_pour in gamestate_to_try.iter_pours() {
+                let new_gs = valid_pour.apply();
+                // only check this gamestate if we haven't already checked it
+                // this means it isn't in tried_gamestates (we didn't generate it)
+                // *and* it isn't the gamestate we started with
+                if all_gamestates.get_by_right(&new_gs).is_none() && new_gs != *gamestate_to_solve {
+                    new_pours.push((new_gs, valid_pour.into()));
+                }
+            }
+
+            // second, since we no longer need gamestate_to_try, we're no longer borrowing immutably from all_gamestates;
+            // so we are allowed to borrow mutably from it (required to add new gamestates to it)
+            for (new_gs, pour) in new_pours {
+                let new_gs_idx = all_gamestates.len();
+                all_gamestates.insert(new_gs_idx, new_gs);
+
+                tried_gamestates.insert(new_gs_idx, (gamestate_to_try_idx, pour));
+                gamestates_to_try.push(new_gs_idx);
+            }
+        }
+
+        // we iterated through all possible pours from this gamestate and found no pours that
+        // lead to a solution; it's not possible to win from here, so return false
         None
     }
 
