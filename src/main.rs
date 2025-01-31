@@ -1,61 +1,57 @@
 use colorgetter::{
-    bottle,
-    bottle::Bottle,
-    colored_water::ColoredWaterUnit,
-    gamestate::{GameState, ValidPour}
+    bottle, bottle::Bottle, colored_water::ColoredWaterUnit, gamestate::GameState,
+    solution::Solution
 };
-use std::io::{self, stdout, Write};
+use std::io::{self, stdin, stdout, Read, Write};
 
+#[allow(clippy::unused_io_amount)]
 fn main() -> io::Result<()> {
     println!("Base gamestate:");
     let base_gamestate = GameState {
         bottles: vec![
-            bottle!([Red, Red, Red], 4),
-            bottle!([Orange, Green, Red], 4),
-            bottle!([Yellow, Maroon], 3),
-            bottle!([Brown, Lime, Aqua, Aqua], 4),
-            bottle!([Maroon, Maroon], 4),
+            bottle!([Orange, Maroon, Yellow, Tan], 4),
+            bottle!([Aqua, Maroon, Pink, Pink], 4),
+            bottle!([Orange, Aqua, Orange, Green], 4),
+            bottle!([Tan, Aqua, Yellow, Aqua], 4),
+            bottle!([Pink, Green, Tan, Yellow], 4),
+            // second row
+            bottle!([Orange, Pink, Maroon, Yellow], 4),
+            bottle!([Maroon, Green, Green, Tan], 4),
+            bottle!([], 4),
+            bottle!([], 4),
         ]
     };
     let mut ostream = stdout();
     base_gamestate.queue_display(&mut ostream)?;
     ostream.flush()?;
 
-    println!("All valid pours:");
-    for pour in base_gamestate.iter_pours() {
-        println!("{}", pour);
+    println!("Finding solution...");
+    if let Some(solution) = Solution::try_new(&base_gamestate) {
+        println!(
+            "Solution found ({} pour{})",
+            solution.get_pours().len(),
+            if solution.get_pours().len() == 1 {
+                ""
+            } else {
+                "s"
+            }
+        );
+        let mut working_gamestate = base_gamestate.clone();
+        for pour in solution.get_pours() {
+            println!("{}", pour);
+            let as_valid = pour
+                .try_into_valid(&working_gamestate)
+                .expect("Pour from solution wasn't valid?");
+            working_gamestate = as_valid.apply();
+            working_gamestate.queue_display(&mut ostream)?;
+            ostream.flush()?;
+
+            println!("Press Enter to continue...");
+            stdin().read(&mut [0]).unwrap();
+        }
+    } else {
+        println!("No solution found")
     }
 
-    let pour = ValidPour::try_new(&base_gamestate, 0, 1).expect("Pour failed to be created");
-    println!("Selected pour: {}", pour);
-    let new_gamestate = pour.apply();
-
-    println!("Gamestate after pour:");
-    new_gamestate.queue_display(&mut ostream)?;
-    ostream.flush()?;
-    println!("All valid pours for new gamestate:");
-    for pour in new_gamestate.iter_pours() {
-        println!("{}", pour);
-    }
-
-    println!("All colors:");
-    let color_sampler = GameState {
-        bottles: vec![
-            bottle!(Red),
-            bottle!(Maroon),
-            bottle!(Lime),
-            bottle!(Green),
-            bottle!(Aqua),
-            bottle!(Blue),
-            bottle!(Yellow),
-            bottle!(Orange),
-            bottle!(Pink),
-            bottle!(Tan),
-            bottle!(Brown),
-        ]
-    };
-
-    color_sampler.queue_display(&mut ostream)?;
-    ostream.flush()?;
     Ok(())
 }

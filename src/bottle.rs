@@ -326,8 +326,8 @@ impl From<PourInError> for PourOutError {
 /// ```
 #[macro_export]
 macro_rules! bottle {
-    ([$($color:ident),+], $capacity:expr) => {
-        Bottle::with_content(&[$(ColoredWaterUnit::$color),+]).take_as_resized($capacity)
+    ([$($color:ident),*], $capacity:expr) => {
+        Bottle::with_content(&[$(ColoredWaterUnit::$color),*]).take_as_resized($capacity)
     };
     ([$($color:ident),+]) => {
         Bottle::with_content(&[$(ColoredWaterUnit::$color),+])

@@ -1,4 +1,4 @@
-//! Implementation for the state of an entire game
+//! Implementation for the state of an entire game and operations that can be performed on it
 
 mod gamestate_def;
 pub use gamestate_def::GameState;

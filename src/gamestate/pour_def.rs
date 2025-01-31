@@ -73,14 +73,14 @@ impl<'a> ValidPour<'a> {
             )
         } else {
             (
-                left.get_mut(self.dest_bottle_index).unwrap(),
-                right.get_mut(self.source_bottle_index - left_len).unwrap()
+                right.get_mut(self.source_bottle_index - left_len).unwrap(),
+                left.get_mut(self.dest_bottle_index).unwrap()
             )
         };
 
         source_bottle
             .try_pour_out(dest_bottle)
-            .expect("Applying a Pour resulted in a PourOutError");
+            .expect("Applying a ValidPour resulted in a PourOutError");
         new_game_state
     }
 
