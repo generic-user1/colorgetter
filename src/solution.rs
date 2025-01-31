@@ -78,8 +78,8 @@ impl<'a, const N: usize> Solution<'a, N> {
             }
             let gamestate_to_try = all_gamestates.get_by_left(&gamestate_to_try_idx).unwrap();
             if gamestate_to_try.is_finished() {
-                let layer_end_time = Instant::now();
                 if PRINT_TIMING_METRICS {
+                    let layer_end_time = Instant::now();
                     println!(
                         "Found solution! ({} members processed in {:?})",
                         states_within_layer,
@@ -129,6 +129,19 @@ impl<'a, const N: usize> Solution<'a, N> {
 
         // we iterated through all possible pours from this gamestate and found no pours that
         // lead to a solution; it's not possible to win from here
+        if PRINT_TIMING_METRICS {
+            let end_time = Instant::now();
+            println!(
+                "Done; ({} members processed in {:?})",
+                states_within_layer,
+                end_time.duration_since(layer_start_time),
+            );
+            println!(
+                "Overall, evaluated {} members in {:?}, but did not find a solution",
+                tried_gamestates.len(),
+                end_time.duration_since(overall_start_time)
+            );
+        }
         None
     }
 
