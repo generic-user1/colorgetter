@@ -6,6 +6,8 @@ use std::{
     time::Instant
 };
 
+use bimap::BiHashMap;
+
 use crate::gamestate::{GameState, Pour};
 
 /// A series of [Pour]s that, when applied to some [GameState]
@@ -35,18 +37,25 @@ impl<'a> Solution<'a> {
     fn find_solving_pours(gamestate_to_solve: &GameState) -> Option<VecDeque<Pour>> {
         const PRINT_TIMING_METRICS: bool = true;
 
+        // only generate GameStates once and reference them from here by index.
+        // GameStateIdx is an alias to some type we can use to uniquely index into this HashMap;
+        // We use an alias to make it more clear what we're doing
+        type GameStateIdx = usize;
+        let mut all_gamestates: BiHashMap<GameStateIdx, GameState> = BiHashMap::new();
+        all_gamestates.insert(0, gamestate_to_solve.clone()); // index is 0
+
         //map from gamestate to (source_gamestate, pour_for_source_gamestate)
         //this allows us to track gamestates
-        let mut tried_gamestates: HashMap<GameState, (GameState, Pour)> = HashMap::new();
-        let mut gamestates_to_try: VecDeque<(u8, GameState)> = VecDeque::new();
-        gamestates_to_try.push_back((0, gamestate_to_solve.clone()));
+        let mut tried_gamestates: HashMap<GameStateIdx, (GameStateIdx, Pour)> = HashMap::new();
+        let mut gamestates_to_try: VecDeque<(u8, GameStateIdx)> = VecDeque::new();
+        gamestates_to_try.push_back((0, 0)); // add our starting gamestate
 
         let overall_start_time = Instant::now();
         let mut layer_start_time = overall_start_time;
         let mut last_seen_layer_idx: u8 = 0;
         let mut states_within_layer: usize = 0;
 
-        while let Some((layer_idx, gamestate_to_try)) = gamestates_to_try.pop_front() {
+        while let Some((layer_idx, gamestate_to_try_idx)) = gamestates_to_try.pop_front() {
             if PRINT_TIMING_METRICS {
                 if layer_idx != last_seen_layer_idx {
                     if last_seen_layer_idx != 0 {
@@ -67,6 +76,7 @@ impl<'a> Solution<'a> {
                     states_within_layer += 1;
                 }
             }
+            let gamestate_to_try = all_gamestates.get_by_left(&gamestate_to_try_idx).unwrap();
             if gamestate_to_try.is_finished() {
                 let layer_end_time = Instant::now();
                 if PRINT_TIMING_METRICS {
@@ -82,29 +92,38 @@ impl<'a> Solution<'a> {
                     );
                 }
                 let mut returnable = VecDeque::new();
-                let mut gs = gamestate_to_try;
+                let mut gs_idx = gamestate_to_try_idx;
                 loop {
-                    if let Some((source_gs, pour)) = tried_gamestates.get(&gs) {
-                        returnable.push_front(pour.clone());
-                        gs = source_gs.clone();
+                    if let Some((source_gs_idx, pour)) = tried_gamestates.remove(&gs_idx) {
+                        returnable.push_front(pour);
+                        gs_idx = source_gs_idx;
                     } else {
                         return Some(returnable);
                     }
                 }
             }
 
+            // the following could theoretically be done in one loop, but borrow rules prevent this.
+            // instead of just cloning, we first create a vector of all new entries that will go into all_gamestates
+            let mut new_pours: Vec<(GameState, Pour)> = Vec::new();
             for valid_pour in gamestate_to_try.iter_pours() {
                 let new_gs = valid_pour.apply();
                 // only check this gamestate if we haven't already checked it
                 // this means it isn't in tried_gamestates (we didn't generate it)
                 // *and* it isn't the gamestate we started with
-                if !tried_gamestates.contains_key(&new_gs) && new_gs != *gamestate_to_solve {
-                    tried_gamestates.insert(
-                        new_gs.clone(),
-                        (gamestate_to_try.clone(), valid_pour.into())
-                    );
-                    gamestates_to_try.push_back((layer_idx.wrapping_add(1), new_gs));
+                if all_gamestates.get_by_right(&new_gs).is_none() && new_gs != *gamestate_to_solve {
+                    new_pours.push((new_gs, valid_pour.into()));
                 }
+            }
+
+            // second, since we no longer need gamestate_to_try, we're no longer borrowing immutably from all_gamestates;
+            // so we are allowed to borrow mutably from it (required to add new gamestates to it)
+            for (new_gs, pour) in new_pours {
+                let new_gs_idx = all_gamestates.len();
+                all_gamestates.insert(new_gs_idx, new_gs);
+
+                tried_gamestates.insert(new_gs_idx, (gamestate_to_try_idx, pour));
+                gamestates_to_try.push_back((layer_idx.wrapping_add(1), new_gs_idx));
             }
         }
 
