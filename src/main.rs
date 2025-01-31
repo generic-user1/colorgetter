@@ -4,6 +4,8 @@ use colorgetter::{
 };
 use std::io::{self, stdin, stdout, Read, Write};
 
+use std::time::Instant;
+
 #[allow(clippy::unused_io_amount)]
 fn main() -> io::Result<()> {
     println!("Base gamestate:");
@@ -26,15 +28,19 @@ fn main() -> io::Result<()> {
     ostream.flush()?;
 
     println!("Finding solution...");
+    let start = Instant::now();
     if let Some(solution) = Solution::try_new(&base_gamestate) {
+        let end = Instant::now();
+        let duration = end.duration_since(start);
         println!(
-            "Solution found ({} pour{})",
+            "Solution found ({} pour{}) in {:?}",
             solution.get_pours().len(),
             if solution.get_pours().len() == 1 {
                 ""
             } else {
                 "s"
-            }
+            },
+            duration
         );
         let mut working_gamestate = base_gamestate.clone();
         for pour in solution.get_pours() {

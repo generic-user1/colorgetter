@@ -38,9 +38,10 @@ impl<'a> Solution<'a> {
         //map from gamestate to (source_gamestate, pour_for_source_gamestate)
         //this allows us to track gamestates
         let mut tried_gamestates: HashMap<GameState, (GameState, Pour)> = HashMap::new();
-        let mut gamestates_to_try: Vec<GameState> = vec![gamestate_to_solve.clone()];
+        let mut gamestates_to_try: VecDeque<GameState> = VecDeque::new();
+        gamestates_to_try.push_back(gamestate_to_solve.clone());
 
-        while let Some(gamestate_to_try) = gamestates_to_try.pop() {
+        while let Some(gamestate_to_try) = gamestates_to_try.pop_front() {
             if gamestate_to_try.is_finished() {
                 let mut gs = gamestate_to_try;
                 loop {
@@ -63,7 +64,7 @@ impl<'a> Solution<'a> {
                         new_gs.clone(),
                         (gamestate_to_try.clone(), valid_pour.into())
                     );
-                    gamestates_to_try.push(new_gs);
+                    gamestates_to_try.push_back(new_gs);
                 }
             }
         }
