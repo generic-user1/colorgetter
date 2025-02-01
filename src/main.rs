@@ -48,7 +48,7 @@ fn main() -> io::Result<()> {
 
     println!("Finding solution...");
     let start = Instant::now();
-    if let Some(solution) = Solution::try_new_fast_find(&base_gamestate, 21) {
+    if let Some(solution) = Solution::try_new_shortest(&base_gamestate, 21) {
         let end = Instant::now();
         let duration = end.duration_since(start);
         println!(
