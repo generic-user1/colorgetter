@@ -1,7 +1,7 @@
 //! Implementation of a [Solution]
 
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{BTreeMap, HashMap, VecDeque},
     io::{self, Write},
     time::Instant
 };
@@ -39,8 +39,8 @@ impl<'a, const N: usize> Solution<'a, N> {
     /// Solution returned may have many more Pours than necessary, but will almost always
     /// take relatively little time and memory to compute. If you want a short solution and don't care
     /// if it takes more time and memory, see [Solution::try_new_shortest]
-    pub fn try_new_fast_find(base_gamestate: &'a GameState<N>) -> Option<Self> {
-        Self::find_solving_pours_depth_first(base_gamestate).map(|pours| Self {
+    pub fn try_new_fast_find(base_gamestate: &'a GameState<N>, max_depth: u8) -> Option<Self> {
+        Self::find_solving_pours_depth_first(base_gamestate, max_depth).map(|pours| Self {
             base_gamestate,
             pours
         })
@@ -99,9 +99,20 @@ impl<'a, const N: usize> Solution<'a, N> {
                 if PRINT_TIMING_METRICS {
                     let layer_end_time = Instant::now();
                     println!(
-                        "Found solution! ({} members processed in {:?})",
+                        "Found solution! ({} members processed in {:?}) ({} members in layer)",
                         states_within_layer,
                         layer_end_time.duration_since(layer_start_time),
+                        states_within_layer
+                            + gamestates_to_try
+                                .drain(..)
+                                .map(|(l, _)| {
+                                    if l == layer_idx {
+                                        1
+                                    } else {
+                                        0
+                                    }
+                                })
+                                .sum::<usize>()
                     );
                     println!(
                         "Overall, evaluated {} members in {:?}",
@@ -129,14 +140,14 @@ impl<'a, const N: usize> Solution<'a, N> {
                 // only check this gamestate if we haven't already checked it
                 // this means it isn't in tried_gamestates (we didn't generate it)
                 // *and* it isn't the gamestate we started with
-                if all_gamestates.get_by_right(&new_gs).is_none() && new_gs != *gamestate_to_solve {
+                if all_gamestates.get_by_right(&new_gs).is_none() {
                     new_pours.push((new_gs, valid_pour.into()));
                 }
             }
 
             // second, since we no longer need gamestate_to_try, we're no longer borrowing immutably from all_gamestates;
             // so we are allowed to borrow mutably from it (required to add new gamestates to it)
-            for (new_gs, pour) in new_pours {
+            for (new_gs, pour) in new_pours.into_iter() {
                 let new_gs_idx = all_gamestates.len();
                 all_gamestates.insert(new_gs_idx, new_gs);
 
@@ -163,13 +174,22 @@ impl<'a, const N: usize> Solution<'a, N> {
         None
     }
 
-    fn find_solving_pours_depth_first(gamestate_to_solve: &GameState<N>) -> Option<VecDeque<Pour>> {
+    fn find_solving_pours_depth_first(
+        gamestate_to_solve: &GameState<N>,
+        max_depth: u8
+    ) -> Option<VecDeque<Pour>> {
         // only generate GameStates once and reference them from here by index.
         // GameStateIdx is an alias to some type we can use to uniquely index into this HashMap;
         // We use an alias to make it more clear what we're doing
         type GameStateIdx = usize;
         let mut all_gamestates: BiHashMap<GameStateIdx, GameState<N>> = BiHashMap::new();
         all_gamestates.insert(0, gamestate_to_solve.clone()); // index is 0
+
+        // for all gamestates, track which layer we found them at
+        let mut all_gamestate_layers: HashMap<GameStateIdx, u8> = HashMap::new();
+        all_gamestate_layers.insert(0, 0);
+
+        let mut visited_at_each_layer_count: BTreeMap<u8, usize> = BTreeMap::new();
 
         //map from gamestate to (source_gamestate, pour_for_source_gamestate)
         //this allows us to track gamestates
@@ -178,46 +198,100 @@ impl<'a, const N: usize> Solution<'a, N> {
         gamestates_to_try.push(0); // add our starting gamestate
 
         while let Some(gamestate_to_try_idx) = gamestates_to_try.pop() {
+            // we need both the gamestate we're testing and the layer we found it on
             let gamestate_to_try = all_gamestates.get_by_left(&gamestate_to_try_idx).unwrap();
+            let layer_idx = *all_gamestate_layers.get(&gamestate_to_try_idx).unwrap();
+
             if gamestate_to_try.is_finished() {
+                println!(
+                    "Found solution on layer {} after checking {} gamestates",
+                    layer_idx,
+                    tried_gamestates.len()
+                );
                 let mut returnable = VecDeque::new();
-                let mut gs = gamestate_to_try_idx;
+                let mut gs_idx = gamestate_to_try_idx;
                 loop {
-                    if let Some((source_gs_idx, pour)) = tried_gamestates.remove(&gs) {
-                        returnable.push_front(pour.clone());
-                        gs = source_gs_idx
+                    if let Some((source_gs_idx, pour)) = tried_gamestates.remove(&gs_idx) {
+                        returnable.push_front(pour);
+                        gs_idx = source_gs_idx;
                     } else {
+                        println!("visited counts: {:?}", visited_at_each_layer_count);
                         return Some(returnable);
                     }
                 }
             }
 
-            // the following could theoretically be done in one loop, but borrow rules prevent this.
-            // instead of just cloning, we first create a vector of all new entries that will go into all_gamestates
-            let mut new_pours: Vec<(GameState<N>, Pour)> = Vec::new();
-            for valid_pour in gamestate_to_try.iter_pours() {
-                let new_gs = valid_pour.apply();
-                // only check this gamestate if we haven't already checked it
-                // this means it isn't in tried_gamestates (we didn't generate it)
-                // *and* it isn't the gamestate we started with
-                if all_gamestates.get_by_right(&new_gs).is_none() && new_gs != *gamestate_to_solve {
-                    new_pours.push((new_gs, valid_pour.into()));
+            let current_visited_for_layer =
+                *visited_at_each_layer_count.get(&layer_idx).unwrap_or(&0);
+            visited_at_each_layer_count.insert(layer_idx, current_visited_for_layer + 1);
+
+            // only explore deeper than this if the max_depth limit is
+            // disabled or we aren't yet at the max_depth
+            if layer_idx < max_depth || max_depth == 0 {
+                // the following could theoretically be done in one loop, but borrow rules prevent this.
+                // instead of just cloning, we first create a vector of data we'll need.
+                // vector's entries are `(game_state, pour_to_get_to_new_gamestate, game_state_idx)`
+                // note that game_state_idx is optional; this gamestate may never have been seen before
+                let mut new_pours: Vec<(GameState<N>, Pour, Option<GameStateIdx>)> = Vec::new();
+                let new_layer_idx = layer_idx.wrapping_add(1);
+                for valid_pour in gamestate_to_try.iter_pours() {
+                    let new_gs = valid_pour.apply();
+
+                    // what we place into the new_pours vec depends on whether we have seen this gamestate before,
+                    // and if we have, what layer we saw it at
+                    match all_gamestates.get_by_right(&new_gs) {
+                        None => {
+                            // never before seen, has no gs_idx
+                            new_pours.push((new_gs, valid_pour.into(), None));
+                        }
+                        Some(existing_gs_idx) => {
+                            // has been seen before; only add to vec if it was seen on a lower layer;
+                            // we don't want to check this gamestate again if we've already seen it on a higher layer
+                            let existing_gs_layer_idx =
+                                *all_gamestate_layers.get(existing_gs_idx).unwrap();
+
+                            if existing_gs_layer_idx > new_layer_idx {
+                                new_pours.push((new_gs, valid_pour.into(), Some(*existing_gs_idx)));
+                            }
+                        }
+                    }
+                }
+
+                // second, since we no longer need gamestate_to_try, we're no longer borrowing immutably from all_gamestates;
+                // so we are allowed to borrow mutably from it (required to add new gamestates to it)
+                for (new_gs, pour, existing_gs_idx) in new_pours {
+                    let new_gs_idx = if let Some(existing_gs_idx) = existing_gs_idx {
+                        // if this gamestate has already been seen before, it already has an index so we
+                        // simply use that.
+                        existing_gs_idx
+                    } else {
+                        // if this gamestate has *not* already been seen before, add it to all_gamestates
+                        // and return the index we placed it at
+                        let new_idx = all_gamestates.len();
+                        all_gamestates.insert(new_idx, new_gs);
+                        new_idx
+                    };
+
+                    // we always want to update the layer idx because we've either never seen this gamestate
+                    // before, or we've seen it but at a different layer
+                    all_gamestate_layers.insert(new_gs_idx, new_layer_idx);
+
+                    // we always want to update how-we-got-here because we've either never seen this gamestate
+                    // before and don't have a way to get to it yet, or we've seen it but with a
+                    // longer chain of pours
+                    tried_gamestates.insert(new_gs_idx, (gamestate_to_try_idx, pour));
+
+                    // we always want to check what's below this gamestate because we've either never done that
+                    // or we have, but didn't explore as far down.
+                    gamestates_to_try.push(new_gs_idx);
                 }
             }
-
-            // second, since we no longer need gamestate_to_try, we're no longer borrowing immutably from all_gamestates;
-            // so we are allowed to borrow mutably from it (required to add new gamestates to it)
-            for (new_gs, pour) in new_pours {
-                let new_gs_idx = all_gamestates.len();
-                all_gamestates.insert(new_gs_idx, new_gs);
-
-                tried_gamestates.insert(new_gs_idx, (gamestate_to_try_idx, pour));
-                gamestates_to_try.push(new_gs_idx);
-            }
         }
-
-        // we iterated through all possible pours from this gamestate and found no pours that
-        // lead to a solution; it's not possible to win from here, so return false
+        println!(
+            "checked {} gamestates and found no solution",
+            tried_gamestates.len()
+        );
+        println!("visited counts: {:?}", visited_at_each_layer_count);
         None
     }
 

@@ -9,19 +9,38 @@ use std::time::Instant;
 #[allow(clippy::unused_io_amount)]
 fn main() -> io::Result<()> {
     println!("Base gamestate:");
-    let base_gamestate = GameState {
-        bottles: [
-            bottle!([Orange, Maroon, Yellow, Tan], 4),
-            bottle!([Aqua, Maroon, Pink, Pink], 4),
-            bottle!([Orange, Aqua, Orange, Green], 4),
-            bottle!([Tan, Aqua, Yellow, Aqua], 4),
-            bottle!([Pink, Green, Tan, Yellow], 4),
-            // second row
-            bottle!([Orange, Pink, Maroon, Yellow], 4),
-            bottle!([Maroon, Green, Green, Tan], 4),
-            bottle!([], 4),
-            bottle!([], 4)
-        ]
+    const SIMPLE_GS: bool = false;
+
+    let base_gamestate = if !SIMPLE_GS {
+        GameState {
+            bottles: [
+                bottle!([Orange, Maroon, Yellow, Tan], 4),
+                bottle!([Aqua, Maroon, Pink, Pink], 4),
+                bottle!([Orange, Aqua, Orange, Green], 4),
+                bottle!([Tan, Aqua, Yellow, Aqua], 4),
+                bottle!([Pink, Green, Tan, Yellow], 4),
+                // second row
+                bottle!([Orange, Pink, Maroon, Yellow], 4),
+                bottle!([Maroon, Green, Green, Tan], 4),
+                bottle!([], 4),
+                bottle!([], 4)
+            ]
+        }
+    } else {
+        GameState {
+            bottles: [
+                bottle!([Red], 4),
+                bottle!([Blue], 4),
+                bottle!([Red, Red, Blue], 4),
+                bottle!([Blue, Blue, Red], 4),
+                bottle!([], 4),
+                // second row
+                bottle!([], 4),
+                bottle!([], 4),
+                bottle!([], 4),
+                bottle!([], 4)
+            ]
+        }
     };
     let mut ostream = stdout();
     base_gamestate.queue_display(&mut ostream)?;
@@ -29,7 +48,7 @@ fn main() -> io::Result<()> {
 
     println!("Finding solution...");
     let start = Instant::now();
-    if let Some(solution) = Solution::try_new_shortest(&base_gamestate) {
+    if let Some(solution) = Solution::try_new_fast_find(&base_gamestate, 21) {
         let end = Instant::now();
         let duration = end.duration_since(start);
         println!(
