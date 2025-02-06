@@ -4,8 +4,9 @@ use std::{
     cmp::min,
     collections::{BTreeMap, HashMap, VecDeque},
     io::{self, Write},
+    num::NonZeroUsize,
     sync::{Arc, RwLock},
-    thread::spawn,
+    thread::{available_parallelism, spawn},
     time::Instant
 };
 
@@ -89,7 +90,11 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
         gamestate_to_solve: &GameState<BCOUNT, BSIZE>,
         max_depth: u8
     ) -> Option<VecDeque<Pour>> {
-        const MAX_THREAD_COUNT: usize = 4;
+        const DEFAULT_MAX_THREAD_COUNT: usize = 4;
+        let max_thread_count = available_parallelism().unwrap_or_else(|_| {
+            eprintln!("Warning: CPU count could not be queried with std::thread::available_parallelism; using default of {}", DEFAULT_MAX_THREAD_COUNT);
+            NonZeroUsize::new(DEFAULT_MAX_THREAD_COUNT).unwrap()
+        }).get();
 
         let initial_gamestates: Vec<(GameState<BCOUNT, BSIZE>, Pour)> = gamestate_to_solve
             .iter_pours()
@@ -114,7 +119,7 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
         //this is where the workers will write their results to, if they have any
         let thread_output = Arc::new(RwLock::new(None));
 
-        let thread_count = min(initial_gamestates.len(), MAX_THREAD_COUNT);
+        let thread_count = min(initial_gamestates.len(), max_thread_count);
 
         let worker_max_depth = if max_depth == 0 { 0 } else { max_depth - 1 };
         //create workers
