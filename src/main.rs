@@ -10,8 +10,7 @@ use std::time::Instant;
 fn main() -> io::Result<()> {
     println!("Base gamestate:");
     const SIMPLE_GS: bool = false;
-
-    let base_gamestate = if !SIMPLE_GS {
+    let base_gamestate: GameState<9, 4> = if !SIMPLE_GS {
         GameState {
             bottles: [
                 bottle!([Orange, Maroon, Yellow, Tan], 4),
@@ -48,7 +47,9 @@ fn main() -> io::Result<()> {
 
     println!("Finding solution...");
     let start = Instant::now();
-    if let Some(solution) = Solution::try_new_threaded(&base_gamestate, 21) {
+
+    let solution = Solution::try_new_threaded(&base_gamestate, 21);
+    if let Some(solution) = solution {
         let end = Instant::now();
         let duration = end.duration_since(start);
         println!(

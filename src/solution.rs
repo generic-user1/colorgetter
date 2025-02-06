@@ -13,7 +13,7 @@ use bimap::BiHashMap;
 
 use crate::gamestate::{GameState, Pour};
 
-type ThreadOutput<const N: usize> = Arc<RwLock<Option<VecDeque<Pour>>>>;
+type ThreadOutput = Arc<RwLock<Option<VecDeque<Pour>>>>;
 
 /// A series of [Pour]s that, when applied to some [GameState]
 /// in sequence, results in a GameState that is finished.
@@ -21,12 +21,12 @@ type ThreadOutput<const N: usize> = Arc<RwLock<Option<VecDeque<Pour>>>>;
 /// Although represented as Pours, each Pour is guaranteed
 /// to be valid for the result of the previous Pour (except the first Pour, which
 /// is instead guaranteed to be valid for the provided `base_gamestate`)
-pub struct Solution<'a, const N: usize> {
-    base_gamestate: &'a GameState<N>,
+pub struct Solution<'a, const BCOUNT: usize, const BSIZE: usize> {
+    base_gamestate: &'a GameState<BCOUNT, BSIZE>,
     pours: VecDeque<Pour>
 }
 
-impl<'a, const N: usize> Solution<'a, N> {
+impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
     /// Try to find and return the shortest possible Solution to the given GameState. If no solution can be found, return `None`.
     ///
     /// Will search for solutions with as many as `max_depth` pours. If no solution is found within that many pours, returns `None`.
@@ -36,7 +36,10 @@ impl<'a, const N: usize> Solution<'a, N> {
     /// May take a relatively long time and a lot of memory, but will always return a Solution
     /// with the fewest possible pours. If you want a solution faster and don't care if it uses more pours
     /// than necessary, see [Solution::try_new_fast_find]
-    pub fn try_new_shortest(base_gamestate: &'a GameState<N>, max_depth: u8) -> Option<Self> {
+    pub fn try_new_shortest(
+        base_gamestate: &'a GameState<BCOUNT, BSIZE>,
+        max_depth: u8
+    ) -> Option<Self> {
         Self::find_solving_pours_breadth_first(base_gamestate, max_depth).map(|pours| Self {
             base_gamestate,
             pours
@@ -51,7 +54,10 @@ impl<'a, const N: usize> Solution<'a, N> {
     ///
     /// May take a lot of memory, but will always return a Solution with the fewest possible pours and will,
     /// in many cases, run faster than [Solution::try_new_shortest].
-    pub fn try_new_threaded(base_gamestate: &'a GameState<N>, max_depth: u8) -> Option<Self> {
+    pub fn try_new_threaded(
+        base_gamestate: &'a GameState<BCOUNT, BSIZE>,
+        max_depth: u8
+    ) -> Option<Self> {
         Self::find_solving_pours_threaded(base_gamestate, max_depth).map(|pours| Self {
             base_gamestate,
             pours
@@ -67,7 +73,10 @@ impl<'a, const N: usize> Solution<'a, N> {
     /// Solution returned may have many more Pours than necessary, but will almost always
     /// take relatively little time and memory to compute. If you want a short solution and don't care
     /// if it takes more time and memory, see [Solution::try_new_shortest]
-    pub fn try_new_fast_find(base_gamestate: &'a GameState<N>, max_depth: u8) -> Option<Self> {
+    pub fn try_new_fast_find(
+        base_gamestate: &'a GameState<BCOUNT, BSIZE>,
+        max_depth: u8
+    ) -> Option<Self> {
         Self::find_solving_pours_depth_first(base_gamestate, max_depth).map(|pours| Self {
             base_gamestate,
             pours
@@ -77,12 +86,12 @@ impl<'a, const N: usize> Solution<'a, N> {
     //TODO: WRITE A SOLVER FUNC THAT SEARCHES THROUGH A SINGLE LAYER AND RETURNS RESULT
 
     fn find_solving_pours_threaded(
-        gamestate_to_solve: &GameState<N>,
+        gamestate_to_solve: &GameState<BCOUNT, BSIZE>,
         max_depth: u8
     ) -> Option<VecDeque<Pour>> {
         const MAX_THREAD_COUNT: usize = 4;
 
-        let initial_gamestates: Vec<(GameState<N>, Pour)> = gamestate_to_solve
+        let initial_gamestates: Vec<(GameState<BCOUNT, BSIZE>, Pour)> = gamestate_to_solve
             .iter_pours()
             .map(|vp| (vp.apply(), vp.into()))
             .collect();
@@ -113,7 +122,7 @@ impl<'a, const N: usize> Solution<'a, N> {
             .chunks((initial_gamestates.len() + (thread_count - 1)) / thread_count);
         let mut chunk_start_idx = 0;
         for gamestate_chunk in chunked_gamestates {
-            let gamestate_chunk: Vec<GameState<N>> =
+            let gamestate_chunk: Vec<GameState<BCOUNT, BSIZE>> =
                 gamestate_chunk.iter().map(|(gs, _)| gs.clone()).collect();
 
             let chunk_len = gamestate_chunk.len();
@@ -152,10 +161,10 @@ impl<'a, const N: usize> Solution<'a, N> {
 
     /// Function that will be run by individual threads under find_solving_pours_threaded
     fn find_solving_pours_threaded_worker(
-        gamestates_to_solve: Vec<GameState<N>>,
+        gamestates_to_solve: Vec<GameState<BCOUNT, BSIZE>>,
         max_depth: u8,
         base_idx: usize,
-        output: ThreadOutput<N>
+        output: ThreadOutput
     ) -> Option<usize> {
         for (gamestate_to_solve_idx, gamestate_to_solve) in
             gamestates_to_solve.into_iter().enumerate()
@@ -164,7 +173,8 @@ impl<'a, const N: usize> Solution<'a, N> {
             // GameStateIdx is an alias to some type we can use to uniquely index into this HashMap;
             // We use an alias to make it more clear what we're doing
             type GameStateIdx = usize;
-            let mut all_gamestates: BiHashMap<GameStateIdx, GameState<N>> = BiHashMap::new();
+            let mut all_gamestates: BiHashMap<GameStateIdx, GameState<BCOUNT, BSIZE>> =
+                BiHashMap::new();
             all_gamestates.insert(0, gamestate_to_solve.clone()); // index is 0
 
             //map from gamestate to (source_gamestate, pour_for_source_gamestate)
@@ -199,7 +209,7 @@ impl<'a, const N: usize> Solution<'a, N> {
                 if layer_idx < max_depth || max_depth == 0 {
                     // the following could theoretically be done in one loop, but borrow rules prevent this.
                     // instead of just cloning, we first create a vector of all new entries that will go into all_gamestates
-                    let mut new_pours: Vec<(GameState<N>, Pour)> = Vec::new();
+                    let mut new_pours: Vec<(GameState<BCOUNT, BSIZE>, Pour)> = Vec::new();
                     for valid_pour in gamestate_to_try.iter_pours() {
                         let new_gs = valid_pour.apply();
                         // only check this gamestate if we haven't already checked it
@@ -233,7 +243,7 @@ impl<'a, const N: usize> Solution<'a, N> {
     ///
     /// Returns None if there are no solutions.
     fn find_solving_pours_breadth_first(
-        gamestate_to_solve: &GameState<N>,
+        gamestate_to_solve: &GameState<BCOUNT, BSIZE>,
         max_depth: u8
     ) -> Option<VecDeque<Pour>> {
         const PRINT_METRICS: bool = true;
@@ -242,7 +252,8 @@ impl<'a, const N: usize> Solution<'a, N> {
         // GameStateIdx is an alias to some type we can use to uniquely index into this HashMap;
         // We use an alias to make it more clear what we're doing
         type GameStateIdx = usize;
-        let mut all_gamestates: BiHashMap<GameStateIdx, GameState<N>> = BiHashMap::new();
+        let mut all_gamestates: BiHashMap<GameStateIdx, GameState<BCOUNT, BSIZE>> =
+            BiHashMap::new();
         all_gamestates.insert(0, gamestate_to_solve.clone()); // index is 0
 
         //map from gamestate to (source_gamestate, pour_for_source_gamestate)
@@ -324,7 +335,7 @@ impl<'a, const N: usize> Solution<'a, N> {
             if layer_idx < max_depth || max_depth == 0 {
                 // the following could theoretically be done in one loop, but borrow rules prevent this.
                 // instead of just cloning, we first create a vector of all new entries that will go into all_gamestates
-                let mut new_pours: Vec<(GameState<N>, Pour)> = Vec::new();
+                let mut new_pours: Vec<(GameState<BCOUNT, BSIZE>, Pour)> = Vec::new();
                 for valid_pour in gamestate_to_try.iter_pours() {
                     let new_gs = valid_pour.apply();
                     // only check this gamestate if we haven't already checked it
@@ -369,7 +380,7 @@ impl<'a, const N: usize> Solution<'a, N> {
     }
 
     fn find_solving_pours_depth_first(
-        gamestate_to_solve: &GameState<N>,
+        gamestate_to_solve: &GameState<BCOUNT, BSIZE>,
         max_depth: u8
     ) -> Option<VecDeque<Pour>> {
         const PRINT_METRICS: bool = true;
@@ -378,7 +389,8 @@ impl<'a, const N: usize> Solution<'a, N> {
         // GameStateIdx is an alias to some type we can use to uniquely index into this HashMap;
         // We use an alias to make it more clear what we're doing
         type GameStateIdx = usize;
-        let mut all_gamestates: BiHashMap<GameStateIdx, GameState<N>> = BiHashMap::new();
+        let mut all_gamestates: BiHashMap<GameStateIdx, GameState<BCOUNT, BSIZE>> =
+            BiHashMap::new();
         all_gamestates.insert(0, gamestate_to_solve.clone()); // index is 0
 
         // for all gamestates, track which layer we found them at
@@ -439,7 +451,8 @@ impl<'a, const N: usize> Solution<'a, N> {
                 // instead of just cloning, we first create a vector of data we'll need.
                 // vector's entries are `(game_state, pour_to_get_to_new_gamestate, game_state_idx)`
                 // note that game_state_idx is optional; this gamestate may never have been seen before
-                let mut new_pours: Vec<(GameState<N>, Pour, Option<GameStateIdx>)> = Vec::new();
+                let mut new_pours: Vec<(GameState<BCOUNT, BSIZE>, Pour, Option<GameStateIdx>)> =
+                    Vec::new();
 
                 // we use saturating add for the new layer_idx to ensure that if we reach layer 255,
                 // items on layer 256 aren't said to be on layer 0; if the layer idx is going to
@@ -508,7 +521,7 @@ impl<'a, const N: usize> Solution<'a, N> {
         None
     }
 
-    pub fn get_base_gamestate(&self) -> &GameState<N> {
+    pub fn get_base_gamestate(&self) -> &GameState<BCOUNT, BSIZE> {
         self.base_gamestate
     }
 

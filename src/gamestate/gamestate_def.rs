@@ -11,11 +11,11 @@ use std::io;
 ///
 /// That is, represents what bottles exist and what order they're in.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct GameState<const N: usize> {
-    pub bottles: [Bottle; N]
+pub struct GameState<const BCOUNT: usize, const BSIZE: usize> {
+    pub bottles: [Bottle<BSIZE>; BCOUNT]
 }
 
-impl<const N: usize> GameState<N> {
+impl<const BCOUNT: usize, const BSIZE: usize> GameState<BCOUNT, BSIZE> {
     /// Queues the display of this GameState for the given `ostream` (typically [std::io::stdout])
     ///
     /// Does not flush; the caller must call flush on `ostream` in order to actually display the GameState.
@@ -91,7 +91,7 @@ impl<const N: usize> GameState<N> {
     }
 
     /// Returns an iterator over all [ValidPour](crate::gamestate::ValidPour)s you could apply to this GameState
-    pub fn iter_pours(&self) -> ValidPourIter<N> {
+    pub fn iter_pours(&self) -> ValidPourIter<BCOUNT, BSIZE> {
         ValidPourIter::new(self)
     }
 }

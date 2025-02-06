@@ -5,7 +5,7 @@ use crate::{bottle, bottle::Bottle, colored_water::ColoredWaterUnit};
 
 #[test]
 fn test_valid_pour_iter() {
-    let first_gamestate = GameState {
+    let first_gamestate: GameState<5, 4> = GameState {
         bottles: [
             bottle!([Red, Red, Red], 4),
             bottle!([Orange, Green, Red], 4),
