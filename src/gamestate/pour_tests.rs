@@ -5,15 +5,14 @@ use crate::{bottle, bottle::Bottle, colored_water::ColoredWaterUnit};
 
 #[test]
 fn test_valid_pour_iter() {
-    let first_gamestate: GameState<5, 4> = GameState {
-        bottles: [
-            bottle!([Red, Red, Red], 4),
-            bottle!([Orange, Green, Red], 4),
-            bottle!([Yellow, Maroon], 3),
-            bottle!([Brown, Lime, Aqua, Aqua], 4),
-            bottle!([Maroon, Maroon], 4)
-        ]
-    };
+    let first_gamestate: GameState<5, 4> = [
+        bottle!([Red, Red, Red], 4),
+        bottle!([Orange, Green, Red], 4),
+        bottle!([Yellow, Maroon], 3),
+        bottle!([Brown, Lime, Aqua, Aqua], 4),
+        bottle!([Maroon, Maroon], 4)
+    ]
+    .into();
 
     // We compare using HashSet instead of vec because we only care that the specific Pours generated
     // from iter_pours match, not their order.

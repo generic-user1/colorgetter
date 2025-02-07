@@ -5,17 +5,18 @@ use crossterm::{
     style::{ContentStyle, Print, PrintStyledContent, StyledContent},
     QueueableCommand
 };
+use heapless::Vec;
 use std::io;
 
 /// The state a particular game is in
 ///
 /// That is, represents what bottles exist and what order they're in.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct GameState<const BCOUNT: usize, const BSIZE: usize> {
-    pub bottles: [Bottle<BSIZE>; BCOUNT]
+pub struct GameState<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> {
+    pub bottles: Vec<Bottle<B_MAX_CAP>, MAX_BCOUNT>
 }
 
-impl<const BCOUNT: usize, const BSIZE: usize> GameState<BCOUNT, BSIZE> {
+impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState<MAX_BCOUNT, B_MAX_CAP> {
     /// Queues the display of this GameState for the given `ostream` (typically [std::io::stdout])
     ///
     /// Does not flush; the caller must call flush on `ostream` in order to actually display the GameState.
@@ -91,7 +92,28 @@ impl<const BCOUNT: usize, const BSIZE: usize> GameState<BCOUNT, BSIZE> {
     }
 
     /// Returns an iterator over all [ValidPour](crate::gamestate::ValidPour)s you could apply to this GameState
-    pub fn iter_pours(&self) -> ValidPourIter<BCOUNT, BSIZE> {
+    pub fn iter_pours(&self) -> ValidPourIter<MAX_BCOUNT, B_MAX_CAP> {
         ValidPourIter::new(self)
+    }
+}
+
+impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> TryFrom<&[Bottle<B_MAX_CAP>]>
+    for GameState<MAX_BCOUNT, B_MAX_CAP>
+{
+    type Error = ();
+    /// This will only fail if the number of [Bottle]s in the provided `value` exceeds the desired `B_MAX_CAP`.
+    fn try_from(value: &[Bottle<B_MAX_CAP>]) -> Result<Self, Self::Error> {
+        Ok(GameState {
+            bottles: Vec::from_slice(value)?
+        })
+    }
+}
+impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> From<[Bottle<B_MAX_CAP>; MAX_BCOUNT]>
+    for GameState<MAX_BCOUNT, B_MAX_CAP>
+{
+    fn from(value: [Bottle<B_MAX_CAP>; MAX_BCOUNT]) -> Self {
+        GameState {
+            bottles: Vec::from_slice(&value).unwrap()
+        }
     }
 }
