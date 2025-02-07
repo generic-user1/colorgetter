@@ -47,14 +47,14 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
         })
     }
 
-    /// Try to find and return the shortest possible Solution to the given GameState. If no solution can be found, return `None`.
+    /// Try to find and return a Solution to the given GameState. If no solution can be found, return `None`.
     ///
     /// Will search for solutions with as many as `max_depth` pours. If no solution is found within that many pours, returns `None`.
     /// Setting `max_depth` to 0 disables the limit; will search for possible solutions that are arbitrarily long until a valid solution is found,
     /// all possible solutions have been checked without a valid solution, or the program panics due to the computer being out of memory.
     ///
-    /// May take a lot of memory, but will always return a Solution with the fewest possible pours and will,
-    /// in many cases, run faster than [Solution::try_new_shortest].
+    /// May take a lot of memory, but will usually return a Solution that either is, or is close to, the shortest possible solution.
+    /// Generally faster than [Solution::try_new_shortest].
     pub fn try_new_threaded(
         base_gamestate: &'a GameState<BCOUNT, BSIZE>,
         max_depth: u8
