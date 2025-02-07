@@ -119,7 +119,7 @@ impl<const MAX_CAP: usize> Bottle<MAX_CAP> {
     /// If `new_capacity` is larger than current capacity, empty space will be added to the 'top' of the new Bottle.
     /// If `new_capacity` is smaller than current capacity, space (and any water in that space) will be removed from the 'top' of the new Bottle.
     ///
-    /// If you want to set a new `MAX_CAP`, see [Bottle::get_resized].
+    /// If you want to set a new `MAX_CAP`, see [Bottle::try_get_resized].
     ///
     /// This will fail if `new_capacity` is greater than `MAX_CAP`.
     pub fn try_take_as_resized(self, new_capacity: usize) -> Result<Self, BottleCapacityError> {
