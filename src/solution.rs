@@ -16,6 +16,13 @@ use crate::gamestate::{GameState, Pour};
 
 type ThreadOutput = Arc<RwLock<Option<VecDeque<Pour>>>>;
 
+/// Represents the state of a solution finding algorithm
+struct SolutionState<const BCOUNT: usize, const BSIZE: usize> {
+    pub all_gamestates: BiHashMap<usize, GameState<BCOUNT, BSIZE>>,
+    pub tried_gamestates: HashMap<usize, (usize, Pour)>,
+    pub gamestates_to_try: VecDeque<(u8, usize)>
+}
+
 /// A series of [Pour]s that, when applied to some [GameState]
 /// in sequence, results in a GameState that is finished.
 ///
@@ -37,9 +44,12 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
     /// Will always return a Solution with the fewest possible pours and theoretically
     /// uses less memory than [Solution::try_new_threaded], but is usually slower.
     pub fn try_new(base_gamestate: &'a GameState<BCOUNT, BSIZE>, max_depth: u8) -> Option<Self> {
-        Self::find_solving_pours_breadth_first(base_gamestate, max_depth).map(|pours| Self {
-            base_gamestate,
-            pours
+        let mut solution_state = Self::gen_initial_state(base_gamestate);
+        Self::find_solving_pours_breadth_first(&mut solution_state, max_depth, true).map(|pours| {
+            Self {
+                base_gamestate,
+                pours
+            }
         })
     }
 
@@ -65,45 +75,55 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
         gamestate_to_solve: &GameState<BCOUNT, BSIZE>,
         max_depth: u8
     ) -> Option<VecDeque<Pour>> {
+        const DEFAULT_INITIAL_DEPTH: u8 = 4;
+
         const DEFAULT_MAX_THREAD_COUNT: usize = 4;
         let max_thread_count = available_parallelism().unwrap_or_else(|_| {
             eprintln!("Warning: CPU count could not be queried with std::thread::available_parallelism; using default of {}", DEFAULT_MAX_THREAD_COUNT);
             NonZeroUsize::new(DEFAULT_MAX_THREAD_COUNT).unwrap()
         }).get();
 
-        let initial_gamestates: Vec<(GameState<BCOUNT, BSIZE>, Pour)> = gamestate_to_solve
-            .iter_pours()
-            .map(|vp| (vp.apply(), vp.into()))
-            .collect();
-
-        // when max_depth is 1, we can't spawn any threads as they'd operate starting at depth 2;
-        // instead we just check if our initial_gamestates contains any winners and return what we find, if anything
-        if max_depth == 1 {
-            for (gs, pour) in initial_gamestates {
-                if gs.is_finished() {
-                    let mut out = VecDeque::new();
-                    out.push_front(pour);
-                    return Some(out);
-                }
-            }
+        // our initial search depth will be our default, or the passed-in max_depth (whichever is smaller)
+        // note that a max_depth of 0 is considered "no limit", so that's the highest value instead of the lowest
+        // (this is similar to ace-high in a card game)
+        let (initial_depth, use_max_depth) = if DEFAULT_INITIAL_DEPTH < max_depth && max_depth != 0
+        {
+            (DEFAULT_INITIAL_DEPTH, false)
+        } else {
+            (max_depth, true)
+        };
+        let mut state = Self::gen_initial_state(gamestate_to_solve);
+        // explore the first initial_depth layers before doing anything else.
+        let early_solution =
+            Self::find_solving_pours_breadth_first(&mut state, initial_depth, use_max_depth);
+        // if we found something early, return it now.
+        // if we didn't, and our initial_depth is the passed in max_depth, return None now.
+        if early_solution.is_some() {
+            return early_solution;
+        } else if use_max_depth {
             return None;
         }
+        let initial_gamestates_to_try: Vec<usize> =
+            state.gamestates_to_try.iter().map(|i| i.1).collect();
 
         let mut handles = Vec::new();
 
         //this is where the workers will write their results to, if they have any
         let thread_output = Arc::new(RwLock::new(None));
 
-        let thread_count = min(initial_gamestates.len(), max_thread_count);
+        let thread_count = min(initial_gamestates_to_try.len(), max_thread_count);
 
-        let worker_max_depth = if max_depth == 0 { 0 } else { max_depth - 1 };
+        let worker_max_depth = max_depth.checked_sub(initial_depth + 1).unwrap();
+
         //create workers
-        let chunked_gamestates = initial_gamestates[..]
-            .chunks((initial_gamestates.len() + (thread_count - 1)) / thread_count);
+        let chunked_gamestates = initial_gamestates_to_try
+            .chunks((state.gamestates_to_try.len() + (thread_count - 1)) / thread_count);
         let mut chunk_start_idx = 0;
         for gamestate_chunk in chunked_gamestates {
-            let gamestate_chunk: Vec<GameState<BCOUNT, BSIZE>> =
-                gamestate_chunk.iter().map(|(gs, _)| gs.clone()).collect();
+            let gamestate_chunk: Vec<GameState<BCOUNT, BSIZE>> = gamestate_chunk
+                .iter()
+                .map(|gs| state.all_gamestates.get_by_left(gs).cloned().unwrap())
+                .collect();
 
             let chunk_len = gamestate_chunk.len();
             let thread_output = thread_output.clone();
@@ -128,11 +148,18 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
             // if this thread found the solution, it will return the idx of the gamestate/pour that it was checking
             // when it found the solution
 
-            if let Some(winning_pour_idx) = handle.join().unwrap() {
+            if let Some(winning_init_gs_idx) = handle.join().unwrap() {
                 let mut solution = thread_output.read().unwrap().clone().unwrap();
-                let winning_pour = initial_gamestates.get(winning_pour_idx).unwrap().1.clone();
-                solution.push_front(winning_pour);
-                return Some(solution);
+                let winning_gs_idx = *initial_gamestates_to_try.get(winning_init_gs_idx).unwrap();
+                let mut gs_idx = winning_gs_idx;
+                loop {
+                    if let Some((source_gs_idx, pour)) = state.tried_gamestates.remove(&gs_idx) {
+                        solution.push_front(pour);
+                        gs_idx = source_gs_idx;
+                    } else {
+                        return Some(solution);
+                    }
+                }
             }
         }
 
@@ -218,16 +245,10 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
         None
     }
 
-    /// Given a GameState, generate possible pours and identify a list of pours that,
-    /// when applied in order, leads to a solution.
-    ///
-    /// Returns None if there are no solutions.
-    fn find_solving_pours_breadth_first(
-        gamestate_to_solve: &GameState<BCOUNT, BSIZE>,
-        max_depth: u8
-    ) -> Option<VecDeque<Pour>> {
-        const PRINT_METRICS: bool = true;
-
+    /// Generates the initial state for a solution algorithm
+    fn gen_initial_state(
+        gamestate_to_solve: &GameState<BCOUNT, BSIZE>
+    ) -> SolutionState<BCOUNT, BSIZE> {
         // only generate GameStates once and reference them from here by index.
         // GameStateIdx is an alias to some type we can use to uniquely index into this HashMap;
         // We use an alias to make it more clear what we're doing
@@ -238,9 +259,32 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
 
         //map from gamestate to (source_gamestate, pour_for_source_gamestate)
         //this allows us to track gamestates
-        let mut tried_gamestates: HashMap<GameStateIdx, (GameStateIdx, Pour)> = HashMap::new();
+        let tried_gamestates: HashMap<GameStateIdx, (GameStateIdx, Pour)> = HashMap::new();
         let mut gamestates_to_try: VecDeque<(u8, GameStateIdx)> = VecDeque::new();
         gamestates_to_try.push_back((0, 0)); // add our starting gamestate
+
+        SolutionState {
+            all_gamestates,
+            tried_gamestates,
+            gamestates_to_try
+        }
+    }
+
+    /// Given a SolutionState, generate possible pours and identify a list of pours that,
+    /// when applied in order, leads to a solution.
+    ///
+    /// Returns None if there are no solutions.
+    ///
+    /// The `cutoff` setting only applies when `max_depth` is nonzero (i.e. there is a depth limit set).
+    /// When `cutoff` is true, the function will stop generating gamestates that would go beyond `max_depth`.
+    /// When `cutoff` is false, the function will generate gamestates that are one layer beyond `max_depth`, but won't evaluate
+    /// them; instead returning after it has evaluated the final layer.
+    fn find_solving_pours_breadth_first(
+        state: &mut SolutionState<BCOUNT, BSIZE>,
+        max_depth: u8,
+        cutoff: bool
+    ) -> Option<VecDeque<Pour>> {
+        const PRINT_METRICS: bool = true;
 
         let overall_start_time = if PRINT_METRICS {
             Some(Instant::now())
@@ -251,7 +295,29 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
         let mut last_seen_layer_idx: Option<u8> = if PRINT_METRICS { Some(0) } else { None };
         let mut states_within_layer: Option<usize> = if PRINT_METRICS { Some(0) } else { None };
 
-        while let Some((layer_idx, gamestate_to_try_idx)) = gamestates_to_try.pop_front() {
+        while let Some((layer_idx, gamestate_to_try_idx)) = state.gamestates_to_try.pop_front() {
+            if layer_idx > max_depth {
+                // put the state we just popped off back onto gamestates_to_try so that someone looking
+                // at our solutionstate can see what we were about to do
+                state
+                    .gamestates_to_try
+                    .push_front((layer_idx, gamestate_to_try_idx));
+                // print the end-of-search messages if appropriate
+                if PRINT_METRICS {
+                    let end_time = Instant::now();
+                    println!(
+                        "Done; ({} members processed in {:?})",
+                        states_within_layer.unwrap(),
+                        end_time.duration_since(layer_start_time.unwrap()),
+                    );
+                    println!(
+                        "Initial search: evaluated {} members in {:?}; no solution yet.",
+                        state.tried_gamestates.len(),
+                        end_time.duration_since(overall_start_time.unwrap())
+                    );
+                }
+                return None;
+            }
             if PRINT_METRICS {
                 if layer_idx != last_seen_layer_idx.unwrap() {
                     if last_seen_layer_idx.unwrap() != 0 {
@@ -272,7 +338,10 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
                     states_within_layer = Some(states_within_layer.unwrap() + 1);
                 }
             }
-            let gamestate_to_try = all_gamestates.get_by_left(&gamestate_to_try_idx).unwrap();
+            let gamestate_to_try = state
+                .all_gamestates
+                .get_by_left(&gamestate_to_try_idx)
+                .unwrap();
             if gamestate_to_try.is_finished() {
                 if PRINT_METRICS {
                     let layer_end_time = Instant::now();
@@ -281,7 +350,8 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
                         states_within_layer.unwrap(),
                         layer_end_time.duration_since(layer_start_time.unwrap()),
                         states_within_layer.unwrap()
-                            + gamestates_to_try
+                            + state
+                                .gamestates_to_try
                                 .drain(..)
                                 .map(|(l, _)| {
                                     if l == layer_idx {
@@ -294,14 +364,14 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
                     );
                     println!(
                         "Overall, evaluated {} members in {:?}",
-                        tried_gamestates.len(),
+                        state.tried_gamestates.len(),
                         layer_end_time.duration_since(overall_start_time.unwrap())
                     );
                 }
                 let mut returnable = VecDeque::new();
                 let mut gs_idx = gamestate_to_try_idx;
                 loop {
-                    if let Some((source_gs_idx, pour)) = tried_gamestates.remove(&gs_idx) {
+                    if let Some((source_gs_idx, pour)) = state.tried_gamestates.remove(&gs_idx) {
                         returnable.push_front(pour);
                         gs_idx = source_gs_idx;
                     } else {
@@ -311,8 +381,8 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
             }
 
             // only explore deeper than this if the max_depth limit is
-            // disabled or we aren't yet at the max_depth
-            if layer_idx < max_depth || max_depth == 0 {
+            // disabled, we aren't yet at the max_depth, or cutoff is set to false
+            if layer_idx < max_depth || max_depth == 0 || !cutoff {
                 // the following could theoretically be done in one loop, but borrow rules prevent this.
                 // instead of just cloning, we first create a vector of all new entries that will go into all_gamestates
                 let mut new_pours: Vec<(GameState<BCOUNT, BSIZE>, Pour)> = Vec::new();
@@ -321,7 +391,7 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
                     // only check this gamestate if we haven't already checked it
                     // this means it isn't in tried_gamestates (we didn't generate it)
                     // *and* it isn't the gamestate we started with
-                    if all_gamestates.get_by_right(&new_gs).is_none() {
+                    if state.all_gamestates.get_by_right(&new_gs).is_none() {
                         new_pours.push((new_gs, valid_pour.into()));
                     }
                 }
@@ -329,14 +399,18 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
                 // second, since we no longer need gamestate_to_try, we're no longer borrowing immutably from all_gamestates;
                 // so we are allowed to borrow mutably from it (required to add new gamestates to it)
                 for (new_gs, pour) in new_pours.into_iter() {
-                    let new_gs_idx = all_gamestates.len();
-                    all_gamestates.insert(new_gs_idx, new_gs);
+                    let new_gs_idx = state.all_gamestates.len();
+                    state.all_gamestates.insert(new_gs_idx, new_gs);
 
-                    tried_gamestates.insert(new_gs_idx, (gamestate_to_try_idx, pour));
+                    state
+                        .tried_gamestates
+                        .insert(new_gs_idx, (gamestate_to_try_idx, pour));
                     // we use saturating add for the new layer_idx to ensure that if we reach layer 255,
                     // items on layer 256 aren't said to be on layer 0; if the layer idx is going to
                     // be incorrect, we'd prefer it to at least never go down
-                    gamestates_to_try.push_back((layer_idx.saturating_add(1), new_gs_idx));
+                    state
+                        .gamestates_to_try
+                        .push_back((layer_idx.saturating_add(1), new_gs_idx));
                 }
             }
         }
@@ -352,7 +426,7 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
             );
             println!(
                 "Overall, evaluated {} members in {:?}, but did not find a solution",
-                tried_gamestates.len(),
+                state.tried_gamestates.len(),
                 end_time.duration_since(overall_start_time.unwrap())
             );
         }
