@@ -9,19 +9,44 @@ use std::time::Instant;
 #[allow(clippy::unused_io_amount)]
 fn main() -> io::Result<()> {
     println!("Base gamestate:");
-    let base_gamestate: GameState<9, 4> = [
-        bottle!([Orange, Maroon, Yellow, Tan], 4),
-        bottle!([Aqua, Maroon, Pink, Pink], 4),
-        bottle!([Orange, Aqua, Orange, Green], 4),
-        bottle!([Tan, Aqua, Yellow, Aqua], 4),
-        bottle!([Pink, Green, Tan, Yellow], 4),
-        // second row
-        bottle!([Orange, Pink, Maroon, Yellow], 4),
-        bottle!([Maroon, Green, Green, Tan], 4),
-        bottle!([], 4),
-        bottle!([], 4)
-    ]
-    .into();
+    const SIMPLE_GS: bool = true;
+    const MAX_DEPTH: u8 = if SIMPLE_GS { 21 } else { 63 };
+    const USE_THREADING: bool = true;
+    let base_gamestate: GameState<14, 4> = if !SIMPLE_GS {
+        [
+            bottle!([Blue, Brown, Lime, Blue], 4),
+            bottle!([Blue, Yellow, Purple, Maroon], 4),
+            bottle!([Orange, Red, Purple, Maroon], 4),
+            bottle!([Orange, Red, Pink, Green], 4),
+            bottle!([Green, Maroon, Tan, Green], 4),
+            bottle!([Lime, Yellow, Pink, Pink], 4),
+            bottle!([Aqua, Tan, Purple, Lime], 4),
+            // second row
+            bottle!([Tan, Aqua, Pink, Brown], 4),
+            bottle!([Yellow, Brown, Aqua, Orange], 4),
+            bottle!([Maroon, Red, Red, Aqua], 4),
+            bottle!([Orange, Brown, Blue, Purple], 4),
+            bottle!([Green, Yellow, Tan, Lime], 4),
+            bottle!([], 4),
+            bottle!([], 4)
+        ]
+        .into()
+    } else {
+        [
+            bottle!([Orange, Maroon, Yellow, Tan], 4),
+            bottle!([Aqua, Maroon, Pink, Pink], 4),
+            bottle!([Orange, Aqua, Orange, Green], 4),
+            bottle!([Tan, Aqua, Yellow, Aqua], 4),
+            bottle!([Pink, Green, Tan, Yellow], 4),
+            // second row
+            bottle!([Orange, Pink, Maroon, Yellow], 4),
+            bottle!([Maroon, Green, Green, Tan], 4),
+            bottle!([], 4),
+            bottle!([], 4)
+        ][..]
+            .try_into()
+            .unwrap()
+    };
     let mut ostream = stdout();
     base_gamestate.queue_display(&mut ostream)?;
     ostream.flush()?;
@@ -29,7 +54,11 @@ fn main() -> io::Result<()> {
     println!("Finding solution...");
     let start = Instant::now();
 
-    let solution = Solution::try_new_threaded(&base_gamestate, 21);
+    let solution = if USE_THREADING {
+        Solution::try_new_threaded(&base_gamestate, MAX_DEPTH)
+    } else {
+        Solution::try_new(&base_gamestate, MAX_DEPTH)
+    };
     if let Some(solution) = solution {
         let end = Instant::now();
         let duration = end.duration_since(start);
