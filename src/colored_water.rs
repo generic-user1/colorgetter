@@ -20,6 +20,7 @@ pub enum ColoredWaterUnit {
     Yellow,
     Orange,
     Pink,
+    Purple,
     Tan,
     Brown
 }
@@ -81,6 +82,11 @@ impl From<&ColoredWaterUnit> for crossterm::style::Color {
                 r: 0xFF,
                 g: 0x69,
                 b: 0xB4
+            },
+            ColoredWaterUnit::Purple => Color::Rgb {
+                r: 70,
+                g: 20,
+                b: 101
             },
             ColoredWaterUnit::Tan => Color::Rgb {
                 r: 0xD2,
