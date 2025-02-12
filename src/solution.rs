@@ -65,14 +65,15 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
         base_gamestate: &'a GameState<BCOUNT, BSIZE>,
         max_depth: u8
     ) -> Option<Self> {
-        Self::find_solving_pours_threaded(base_gamestate, max_depth).map(|pours| Self {
+        let mut solution_state = Self::gen_initial_state(base_gamestate);
+        Self::find_solving_pours_threaded(&mut solution_state, max_depth).map(|pours| Self {
             base_gamestate,
             pours
         })
     }
 
     fn find_solving_pours_threaded(
-        gamestate_to_solve: &GameState<BCOUNT, BSIZE>,
+        state: &mut SolutionState<BCOUNT, BSIZE>,
         max_depth: u8
     ) -> Option<VecDeque<Pour>> {
         const DEFAULT_INITIAL_DEPTH: u8 = 4;
@@ -92,10 +93,10 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
         } else {
             (max_depth, true)
         };
-        let mut state = Self::gen_initial_state(gamestate_to_solve);
+
         // explore the first initial_depth layers before doing anything else.
         let early_solution =
-            Self::find_solving_pours_breadth_first(&mut state, initial_depth, use_max_depth);
+            Self::find_solving_pours_breadth_first(state, initial_depth, use_max_depth);
         // if we found something early, return it now.
         // if we didn't, and our initial_depth is the passed in max_depth, return None now.
         if early_solution.is_some() {
