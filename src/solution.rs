@@ -76,12 +76,11 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
         state: &mut SolutionState<BCOUNT, BSIZE>,
         max_depth: u8
     ) -> Option<VecDeque<Pour>> {
-        const MAX_INITIAL_DEPTH: u8 = 20;
         const DEFAULT_INITIAL_DEPTH: u8 = 10;
 
-        //initial depth, if max_depth is set, is half the max depth clamped between MAX_INITIAL_DEPTH and 1
+        //initial depth, if max_depth is set, is half the max depth or 1 (whichever is greater)
         let initial_depth = if max_depth > 0 {
-            (max_depth / 2).min(MAX_INITIAL_DEPTH).max(1)
+            (max_depth / 2).max(1)
         } else {
             // use this as the initial depth when max_depth is unspecified
             DEFAULT_INITIAL_DEPTH
