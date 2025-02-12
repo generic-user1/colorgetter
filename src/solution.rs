@@ -76,7 +76,16 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
         state: &mut SolutionState<BCOUNT, BSIZE>,
         max_depth: u8
     ) -> Option<VecDeque<Pour>> {
-        const DEFAULT_INITIAL_DEPTH: u8 = 4;
+        const MAX_INITIAL_DEPTH: u8 = 20;
+        const DEFAULT_INITIAL_DEPTH: u8 = 10;
+
+        //initial depth, if max_depth is set, is half the max depth clamped between MAX_INITIAL_DEPTH and 1
+        let initial_depth = if max_depth > 0 {
+            (max_depth / 2).min(MAX_INITIAL_DEPTH).max(1)
+        } else {
+            // use this as the initial depth when max_depth is unspecified
+            DEFAULT_INITIAL_DEPTH
+        };
 
         const DEFAULT_MAX_THREAD_COUNT: usize = 4;
         let max_thread_count = available_parallelism().unwrap_or_else(|_| {
@@ -87,12 +96,12 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
         // our initial search depth will be our default, or the passed-in max_depth (whichever is smaller)
         // note that a max_depth of 0 is considered "no limit", so that's the highest value instead of the lowest
         // (this is similar to ace-high in a card game)
-        let (initial_depth, use_max_depth) = if DEFAULT_INITIAL_DEPTH < max_depth && max_depth != 0
-        {
-            (DEFAULT_INITIAL_DEPTH, false)
+        let (initial_depth, use_max_depth) = if initial_depth < max_depth || max_depth == 0 {
+            (initial_depth, false)
         } else {
             (max_depth, true)
         };
+        dbg!(initial_depth);
 
         // explore the first initial_depth layers before doing anything else.
         let early_solution =
@@ -114,7 +123,11 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
 
         let thread_count = min(initial_gamestates_to_try.len(), max_thread_count);
 
-        let worker_max_depth = max_depth.checked_sub(initial_depth + 1).unwrap();
+        let worker_max_depth = if max_depth == 0 {
+            0
+        } else {
+            max_depth.checked_sub(initial_depth + 1).unwrap()
+        };
 
         //create workers
         let chunked_gamestates = initial_gamestates_to_try
