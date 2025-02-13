@@ -5,16 +5,70 @@ use std::{
     collections::{HashMap, VecDeque},
     io::{self, Write},
     num::NonZeroUsize,
-    sync::{Arc, RwLock},
+    sync::Arc,
     thread::{available_parallelism, spawn},
     time::Instant
 };
+
+use parking_lot::{RwLock, RwLockUpgradableReadGuard};
 
 use bimap::BiHashMap;
 
 use crate::gamestate::{GameState, Pour};
 
 type ThreadOutput = Arc<RwLock<Option<VecDeque<Pour>>>>;
+
+// maps gamestate index to gamestate and highest-layer-seen-on
+struct GamestatePoolRaw<const BCOUNT: usize, const BSIZE: usize> {
+    gs_pool: BiHashMap<usize, GameState<BCOUNT, BSIZE>>,
+    gs_layer_pool: HashMap<usize, u8>
+}
+
+impl<const BCOUNT: usize, const BSIZE: usize> GamestatePoolRaw<BCOUNT, BSIZE> {
+    pub fn new() -> Self {
+        GamestatePoolRaw {
+            gs_pool: BiHashMap::new(),
+            gs_layer_pool: HashMap::new()
+        }
+    }
+
+    /// Inserts a gamestate with its layer index, returns the index that the Gamestate was given
+    pub fn insert(&mut self, gs: GameState<BCOUNT, BSIZE>, gs_layer_idx: u8) -> usize {
+        let gs_idx = self.gs_pool.len();
+        self.gs_pool.insert_no_overwrite(gs_idx, gs).unwrap();
+        self.gs_layer_pool.insert(gs_idx, gs_layer_idx);
+        gs_idx
+    }
+
+    /// Retrieves the GameState and its layer index by the GameState index
+    pub fn get_by_idx(&self, gs_idx: usize) -> Option<(&GameState<BCOUNT, BSIZE>, u8)> {
+        let gs = self.gs_pool.get_by_left(&gs_idx);
+        let gs_layer_idx = self.gs_layer_pool.get(&gs_idx);
+
+        match (gs, gs_layer_idx) {
+            (Some(gs), Some(gs_layer_idx)) => Some((gs, *gs_layer_idx)),
+            _ => None
+        }
+    }
+
+    /// Retrieves the GameState index and its layer index by the GameState
+    pub fn get_by_gs(&self, gs: &GameState<BCOUNT, BSIZE>) -> Option<(usize, u8)> {
+        if let Some(gs_idx) = self.gs_pool.get_by_right(gs) {
+            let gs_layer_idx = self.gs_layer_pool.get(gs_idx).unwrap();
+            Some((*gs_idx, *gs_layer_idx))
+        } else {
+            None
+        }
+    }
+
+    /// Updates the layer index of a given GameState, by GameState index
+    pub fn update_layer(&mut self, gs_idx: usize, new_layer_idx: u8) {
+        *self.gs_layer_pool.get_mut(&gs_idx).unwrap() = new_layer_idx;
+    }
+}
+
+type GamestatePool<const BCOUNT: usize, const BSIZE: usize> =
+    Arc<RwLock<GamestatePoolRaw<BCOUNT, BSIZE>>>;
 
 /// Represents the state of a solution finding algorithm
 struct SolutionState<const BCOUNT: usize, const BSIZE: usize> {
@@ -100,7 +154,6 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
         } else {
             (max_depth, true)
         };
-        dbg!(initial_depth);
 
         // explore the first initial_depth layers before doing anything else.
         let early_solution =
@@ -119,6 +172,9 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
 
         //this is where the workers will write their results to, if they have any
         let thread_output = Arc::new(RwLock::new(None));
+
+        //this is where the workers will write their shared gamestates to
+        let gs_pool = Arc::new(RwLock::new(GamestatePoolRaw::new()));
 
         let thread_count = min(initial_gamestates_to_try.len(), max_thread_count);
 
@@ -140,13 +196,14 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
 
             let chunk_len = gamestate_chunk.len();
             let thread_output = thread_output.clone();
-
+            let gs_pool = gs_pool.clone();
             handles.push(spawn(move || {
                 Self::find_solving_pours_threaded_worker(
                     gamestate_chunk,
                     worker_max_depth,
                     chunk_start_idx,
-                    thread_output
+                    thread_output,
+                    gs_pool
                 )
             }));
             chunk_start_idx += chunk_len;
@@ -162,7 +219,7 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
             // when it found the solution
 
             if let Some(winning_init_gs_idx) = handle.join().unwrap() {
-                let mut solution = thread_output.read().unwrap().clone().unwrap();
+                let mut solution = thread_output.read().clone().unwrap();
                 let winning_gs_idx = *initial_gamestates_to_try.get(winning_init_gs_idx).unwrap();
                 let mut gs_idx = winning_gs_idx;
                 loop {
@@ -184,7 +241,8 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
         gamestates_to_solve: Vec<GameState<BCOUNT, BSIZE>>,
         max_depth: u8,
         base_idx: usize,
-        output: ThreadOutput
+        output: ThreadOutput,
+        gs_pool: GamestatePool<BCOUNT, BSIZE>
     ) -> Option<usize> {
         for (gamestate_to_solve_idx, gamestate_to_solve) in
             gamestates_to_solve.into_iter().enumerate()
@@ -193,22 +251,42 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
             // GameStateIdx is an alias to some type we can use to uniquely index into this HashMap;
             // We use an alias to make it more clear what we're doing
             type GameStateIdx = usize;
-            let mut all_gamestates: BiHashMap<GameStateIdx, GameState<BCOUNT, BSIZE>> =
-                BiHashMap::new();
-            all_gamestates.insert(0, gamestate_to_solve.clone()); // index is 0
+            let gs_pool_reader = gs_pool.upgradable_read();
+            let initial_gs_idx = gs_pool_reader.get_by_gs(&gamestate_to_solve);
+            let initial_gs_idx = if let Some((gs_idx, 0)) = initial_gs_idx {
+                gs_idx
+            } else {
+                let mut gs_pool_writer = RwLockUpgradableReadGuard::upgrade(gs_pool_reader);
+                // theoretically possible that between our initial read and this one, the gs was added
+                // but while we have a writer, no other thread can make changes. check again here
+
+                if let Some((gs_idx, current_layer_idx)) =
+                    gs_pool_writer.get_by_gs(&gamestate_to_solve)
+                {
+                    if current_layer_idx > 0 {
+                        gs_pool_writer.update_layer(gs_idx, 0);
+                    }
+                    gs_idx
+                } else {
+                    gs_pool_writer.insert(gamestate_to_solve, 0)
+                }
+            };
 
             //map from gamestate to (source_gamestate, pour_for_source_gamestate)
             //this allows us to track gamestates
             let mut tried_gamestates: HashMap<GameStateIdx, (GameStateIdx, Pour)> = HashMap::new();
-            let mut gamestates_to_try: VecDeque<(u8, GameStateIdx)> = VecDeque::new();
-            gamestates_to_try.push_back((0, 0)); // add our starting gamestate
+            let mut gamestates_to_try: VecDeque<GameStateIdx> = VecDeque::new();
+            gamestates_to_try.push_back(initial_gs_idx); // add our starting gamestate
 
-            while let Some((layer_idx, gamestate_to_try_idx)) = gamestates_to_try.pop_front() {
+            while let Some(gamestate_to_try_idx) = gamestates_to_try.pop_front() {
                 //end now if some thread has found a solution
-                if output.read().unwrap().is_some() {
+                if output.read().is_some() {
                     return None;
                 }
-                let gamestate_to_try = all_gamestates.get_by_left(&gamestate_to_try_idx).unwrap();
+
+                let gs_reader = gs_pool.upgradable_read();
+                let (gamestate_to_try, layer_idx) =
+                    gs_reader.get_by_idx(gamestate_to_try_idx).unwrap();
                 if gamestate_to_try.is_finished() {
                     let mut returnable = VecDeque::new();
                     let mut gs_idx = gamestate_to_try_idx;
@@ -218,7 +296,7 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
                             gs_idx = source_gs_idx;
                         } else {
                             //write out our solution and exit
-                            *output.write().unwrap() = Some(returnable);
+                            *output.write() = Some(returnable);
                             return Some(base_idx + gamestate_to_solve_idx);
                         }
                     }
@@ -227,30 +305,34 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
                 // only explore deeper than this if the max_depth limit is
                 // disabled or we aren't yet at the max_depth
                 if layer_idx < max_depth || max_depth == 0 {
-                    // the following could theoretically be done in one loop, but borrow rules prevent this.
-                    // instead of just cloning, we first create a vector of all new entries that will go into all_gamestates
-                    let mut new_pours: Vec<(GameState<BCOUNT, BSIZE>, Pour)> = Vec::new();
-                    for valid_pour in gamestate_to_try.iter_pours() {
-                        let new_gs = valid_pour.apply();
-                        // only check this gamestate if we haven't already checked it
-                        // this means it isn't in tried_gamestates (we didn't generate it)
-                        // *and* it isn't the gamestate we started with
-                        if all_gamestates.get_by_right(&new_gs).is_none() {
-                            new_pours.push((new_gs, valid_pour.into()));
-                        }
-                    }
+                    let new_possible_pours: Vec<(GameState<BCOUNT, BSIZE>, Pour)> =
+                        gamestate_to_try
+                            .iter_pours()
+                            .map(|p| (p.apply(), p.into()))
+                            .collect();
+                    let mut gs_writer = RwLockUpgradableReadGuard::upgrade(gs_reader);
 
-                    // second, since we no longer need gamestate_to_try, we're no longer borrowing immutably from all_gamestates;
-                    // so we are allowed to borrow mutably from it (required to add new gamestates to it)
-                    for (new_gs, pour) in new_pours.into_iter() {
-                        let new_gs_idx = all_gamestates.len();
-                        all_gamestates.insert(new_gs_idx, new_gs);
+                    let new_layer_idx = layer_idx.saturating_add(1);
+                    for (new_gs, pour) in new_possible_pours.into_iter() {
+                        let read_res = gs_writer.get_by_gs(&new_gs);
+                        let new_gs_idx =
+                            if let Some((existing_gs_idx, existing_layer_idx)) = read_res {
+                                if existing_layer_idx > new_layer_idx {
+                                    gs_writer.update_layer(existing_gs_idx, new_layer_idx);
+
+                                    existing_gs_idx
+                                } else {
+                                    continue;
+                                }
+                            } else {
+                                gs_writer.insert(new_gs, new_layer_idx)
+                            };
 
                         tried_gamestates.insert(new_gs_idx, (gamestate_to_try_idx, pour));
                         // we use saturating add for the new layer_idx to ensure that if we reach layer 255,
                         // items on layer 256 aren't said to be on layer 0; if the layer idx is going to
                         // be incorrect, we'd prefer it to at least never go down
-                        gamestates_to_try.push_back((layer_idx.saturating_add(1), new_gs_idx));
+                        gamestates_to_try.push_back(new_gs_idx);
                     }
                 }
             }
@@ -263,7 +345,7 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
         gamestate_to_solve: &GameState<BCOUNT, BSIZE>
     ) -> SolutionState<BCOUNT, BSIZE> {
         // only generate GameStates once and reference them from here by index.
-        // GameStateIdx is an alias to some type we can use to uniquely index into this HashMap;
+        // GameStateIdx is a*n alias to some type we can use to uniquely index into this HashMap;
         // We use an alias to make it more clear what we're doing
         type GameStateIdx = usize;
         let mut all_gamestates: BiHashMap<GameStateIdx, GameState<BCOUNT, BSIZE>> =

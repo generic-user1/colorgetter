@@ -39,6 +39,7 @@ dependencies = [
  "bimap",
  "crossterm",
  "heapless",
+ "parking_lot",
 ]
 
 [[package]]
