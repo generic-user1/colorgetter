@@ -100,7 +100,6 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
         } else {
             (max_depth, true)
         };
-        dbg!(initial_depth);
 
         // explore the first initial_depth layers before doing anything else.
         let early_solution =
@@ -239,6 +238,10 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
                             new_pours.push((new_gs, valid_pour.into()));
                         }
                     }
+
+                    // since some of the valid pours may be functional duplicates, we need to dedup here
+                    new_pours.sort_by(|a, b| a.0.cmp(&b.0));
+                    new_pours.dedup_by(|a, b| a.0.eq(&b.0));
 
                     // second, since we no longer need gamestate_to_try, we're no longer borrowing immutably from all_gamestates;
                     // so we are allowed to borrow mutably from it (required to add new gamestates to it)
@@ -404,20 +407,26 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
                     // only check this gamestate if we haven't already checked it
                     // this means it isn't in tried_gamestates (we didn't generate it)
                     // *and* it isn't the gamestate we started with
-                    if state.all_gamestates.get_by_right(&new_gs).is_none() {
+                    if !state.all_gamestates.contains_right(&new_gs) {
                         new_pours.push((new_gs, valid_pour.into()));
                     }
                 }
+
+                // since some of the valid pours may be functional duplicates, we need to dedup here
+                new_pours.sort_by(|a, b| a.0.cmp(&b.0));
+                new_pours.dedup_by(|a, b| a.0.eq(&b.0));
 
                 // second, since we no longer need gamestate_to_try, we're no longer borrowing immutably from all_gamestates;
                 // so we are allowed to borrow mutably from it (required to add new gamestates to it)
                 for (new_gs, pour) in new_pours.into_iter() {
                     let new_gs_idx = state.all_gamestates.len();
+
                     state.all_gamestates.insert(new_gs_idx, new_gs);
 
                     state
                         .tried_gamestates
                         .insert(new_gs_idx, (gamestate_to_try_idx, pour));
+
                     // we use saturating add for the new layer_idx to ensure that if we reach layer 255,
                     // items on layer 256 aren't said to be on layer 0; if the layer idx is going to
                     // be incorrect, we'd prefer it to at least never go down

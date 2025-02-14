@@ -1,5 +1,7 @@
 //! Implementation of a bottle for colored water
 
+use std::cmp::Ordering;
+
 use crate::colored_water::{ColoredWaterRun, ColoredWaterUnit};
 use heapless::Vec;
 
@@ -292,6 +294,45 @@ impl<const MAX_CAP: usize> Bottle<MAX_CAP> {
     /// can also still be poured into (and therefore, are not definitively in their final state).
     pub fn is_in_final_state(&self) -> bool {
         ColoredWaterRun::try_from(self.get_content()).is_ok_and(|run| run.size == self.capacity)
+    }
+}
+
+// We need to implement Ord on bottles so that we can sort them into some standardized order.
+impl<const MAX_CAP: usize> Ord for Bottle<MAX_CAP> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        // bottle A is less than another bottle B when
+        // any of the following is true:
+        // - bottle A has less capacity
+        // - bottle A has fewer units (more empty spaces)
+        // - bottle A's bottom unit is a color 'less than' bottle B's bottom unit
+        // - the above, for each unit up
+        // note that 'less than' for a color means it appears earlier in the ColoredWaterUnit definition
+
+        let cmp_res = self.capacity.cmp(&other.capacity);
+        if cmp_res != Ordering::Equal {
+            return cmp_res;
+        }
+
+        let cmp_res = self.content.len().cmp(&other.content.len());
+        if cmp_res != Ordering::Equal {
+            return cmp_res;
+        }
+
+        for (index, &color) in self.content.iter().enumerate() {
+            let other_color = *other.content.get(index).unwrap();
+            let cmp_res = (color as u8).cmp(&(other_color as u8));
+            if cmp_res != Ordering::Equal {
+                return cmp_res;
+            }
+        }
+
+        Ordering::Equal
+    }
+}
+
+impl<const MAX_CAP: usize> PartialOrd for Bottle<MAX_CAP> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
 

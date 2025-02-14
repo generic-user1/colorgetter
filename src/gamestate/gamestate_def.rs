@@ -6,12 +6,12 @@ use crossterm::{
     QueueableCommand
 };
 use heapless::Vec;
-use std::io;
+use std::{hash::Hash, io, usize};
 
 /// The state a particular game is in
 ///
 /// That is, represents what bottles exist and what order they're in.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Eq)]
 pub struct GameState<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> {
     pub bottles: Vec<Bottle<B_MAX_CAP>, MAX_BCOUNT>
 }
@@ -94,6 +94,60 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState<MAX_BCOUNT, B_MA
     /// Returns an iterator over all [ValidPour](crate::gamestate::ValidPour)s you could apply to this GameState
     pub fn iter_pours(&self) -> ValidPourIter<MAX_BCOUNT, B_MAX_CAP> {
         ValidPourIter::new(self)
+    }
+}
+
+impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> Ord for GameState<MAX_BCOUNT, B_MAX_CAP> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let mut our_std_order_bottles = self.bottles.clone();
+        our_std_order_bottles.sort();
+
+        let mut other_std_order_bottles = other.bottles.clone();
+        other_std_order_bottles.sort();
+
+        our_std_order_bottles.cmp(&other_std_order_bottles)
+    }
+}
+
+impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> PartialOrd
+    for GameState<MAX_BCOUNT, B_MAX_CAP>
+{
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> PartialEq
+    for GameState<MAX_BCOUNT, B_MAX_CAP>
+{
+    fn eq(&self, other: &Self) -> bool {
+        if self.is_finished() != other.is_finished() {
+            return false;
+        }
+
+        let mut our_std_order_bottles = self.bottles.clone();
+        our_std_order_bottles.sort();
+
+        let mut other_std_order_bottles = other.bottles.clone();
+        other_std_order_bottles.sort();
+
+        our_std_order_bottles == other_std_order_bottles
+    }
+}
+impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> Hash for GameState<MAX_BCOUNT, B_MAX_CAP> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // Include whether we're finished
+        self.is_finished().hash(state);
+
+        // Hash for this GameState is the hashes of all bottles in the gamestate in some standard order
+        // To accomplish this, we first put the bottles of this state into standard order
+        let mut std_order_bottles = self.bottles.clone();
+        std_order_bottles.sort();
+
+        // we then hash bottles in said order
+        for bottle in std_order_bottles {
+            bottle.hash(state);
+        }
     }
 }
 

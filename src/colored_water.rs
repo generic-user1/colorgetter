@@ -11,18 +11,18 @@ pub struct ColoredWaterRun {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 /// One unit of colored water, with a specific color
 pub enum ColoredWaterUnit {
-    Red,
-    Maroon,
-    Lime,
-    Green,
-    Aqua,
-    Blue,
-    Yellow,
-    Orange,
-    Pink,
-    Purple,
-    Tan,
-    Brown
+    Red = 0,
+    Maroon = 1,
+    Lime = 2,
+    Green = 3,
+    Aqua = 4,
+    Blue = 5,
+    Yellow = 6,
+    Orange = 7,
+    Pink = 8,
+    Purple = 9,
+    Tan = 10,
+    Brown = 11
 }
 
 impl From<ColoredWaterRun> for Vec<ColoredWaterUnit> {
