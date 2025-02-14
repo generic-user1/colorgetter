@@ -300,7 +300,7 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
         max_depth: u8,
         cutoff: bool
     ) -> Option<VecDeque<Pour>> {
-        const PRINT_METRICS: bool = true;
+        const PRINT_METRICS: bool = false;
 
         let overall_start_time = if PRINT_METRICS {
             Some(Instant::now())
