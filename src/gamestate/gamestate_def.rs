@@ -6,7 +6,7 @@ use crossterm::{
     QueueableCommand
 };
 use heapless::Vec;
-use std::{hash::Hash, io, usize};
+use std::{hash::Hash, io, num::NonZeroUsize, slice::SliceIndex, usize};
 
 /// The state a particular game is in
 ///
@@ -17,12 +17,29 @@ pub struct GameState<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> {
 }
 
 impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState<MAX_BCOUNT, B_MAX_CAP> {
-    /// Queues the display of this GameState for the given `ostream` (typically [std::io::stdout])
+    /// Queues the display of this entire GameState for the given `ostream` (typically [std::io::stdout])
     ///
     /// Does not flush; the caller must call flush on `ostream` in order to actually display the GameState.
-    pub fn queue_display<T: QueueableCommand>(&self, ostream: &mut T) -> io::Result<()> {
-        // TODO: break GameState into multiple lines in some cases
+    ///
+    /// If you want to queue some arbitrary portion of this GameState, see [GameState::queue_display_partial]
+    pub fn queue_display_full<T: QueueableCommand>(&self, ostream: &mut T) -> io::Result<()> {
+        self.queue_display_partial(ostream, ..)
+    }
 
+    /// Queues the display of some portion of this GameState for the given `ostream` (typically [std::io::stdout])
+    /// Only queues for display bottles that are within the specified `range`.
+    ///
+    /// Does not flush; the caller must call flush on `ostream` in order to actually display the GameState.
+    ///
+    /// If you want to queue this entire GameState for display, see [GameState::queue_display_full]
+    pub fn queue_display_partial<
+        T: QueueableCommand,
+        V: SliceIndex<[Bottle<B_MAX_CAP>], Output = [Bottle<B_MAX_CAP>]> + Clone
+    >(
+        &self,
+        ostream: &mut T,
+        range: V
+    ) -> io::Result<()> {
         const FILLED: char = '█';
         const EMPTY: char = '▒';
         const NOTHING: char = ' ';
@@ -31,9 +48,12 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState<MAX_BCOUNT, B_MA
         // Using an alternate screen might make cursor movement work though, so this is left as an option for now.
         const USE_CURSOR: bool = false;
 
+        // the row count here is still determined by the maximum capacity of any bottle in this gamestate
+        // so that calling queue_display_partial twice (once on 'left half', once on 'right half') results in two
+        // outputs of consistent height, even if the first and second halves have differing max capacities within them
         if let Some(row_count) = self.bottles.iter().map(|b| b.get_capacity()).max() {
             for row_index in (0..row_count).rev() {
-                for bottle in &self.bottles {
+                for bottle in &self.bottles[range.clone()] {
                     if bottle.get_capacity() < (row_index + 1) {
                         // if capacity is less than row index + 1 (row_index is 0-based so we add 1 for 1-based),
                         // this bottle doesn't have the capacity to reach here, so we print nothing
@@ -78,6 +98,44 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState<MAX_BCOUNT, B_MA
         Ok(())
     }
 
+    /// Queues the display of this entire GameState for the given `ostream` (typically [std::io::stdout]),
+    /// queuing on `row_count` distinct rows of bottles.
+    ///
+    /// Note that if the number of bottles is not evenly divisible by `row_count`, the size of the final row
+    /// may be inconsistent with the size of earlier rows, and there may be fewer rows than `row_count`.
+    ///
+    /// Does not flush; the caller must call flush on `ostream` in order to actually display the GameState.
+    pub fn queue_display_rows<T: QueueableCommand>(
+        &self,
+        ostream: &mut T,
+        row_count: NonZeroUsize
+    ) -> io::Result<()> {
+        let row_count = row_count.get();
+        // if our row count is 1, just use the full display function as that'll do the job and we don't
+        // need to worry about wonky math. from this point on, we can assume that row_count >= 2.
+        if row_count == 1 {
+            return self.queue_display_full(ostream);
+        }
+
+        let row_length = (self.bottles.len() + (row_count - 1)) / row_count;
+
+        let mut range_start = 0;
+        let mut range_end = row_length;
+        loop {
+            let range = range_start..(range_end.min(self.bottles.len()));
+            self.queue_display_partial(ostream, range)?;
+
+            range_start = range_end;
+            range_end += row_length;
+            if range_start < self.bottles.len() {
+                ostream.queue(Print('\n'))?;
+            } else {
+                break;
+            }
+        }
+
+        Ok(())
+    }
     /// Returns whether this GameState represents a finished game
     ///
     /// The game is finished when all bottles are either completely empty or

@@ -2,11 +2,13 @@ use colorgetter::{
     bottle, bottle::Bottle, colored_water::ColoredWaterUnit, gamestate::GameState,
     solution::Solution
 };
-use std::io::{self, stdin, stdout, Read, Write};
+use std::{
+    io::{self, stdin, stdout, Read, Write},
+    num::NonZeroUsize
+};
 
 use std::time::Instant;
 
-#[allow(clippy::unused_io_amount)]
 fn main() -> io::Result<()> {
     println!("Base gamestate:");
     const SIMPLE_GS: bool = true;
@@ -48,7 +50,7 @@ fn main() -> io::Result<()> {
             .unwrap()
     };
     let mut ostream = stdout();
-    base_gamestate.queue_display(&mut ostream)?;
+    base_gamestate.queue_display_rows(&mut ostream, NonZeroUsize::new(2).unwrap())?;
     ostream.flush()?;
 
     println!("Finding solution...");
@@ -74,11 +76,17 @@ fn main() -> io::Result<()> {
                 .try_into_valid(&working_gamestate)
                 .expect("Pour from solution wasn't valid?");
             working_gamestate = as_valid.apply();
-            working_gamestate.queue_display(&mut ostream)?;
+            working_gamestate.queue_display_rows(&mut ostream, NonZeroUsize::new(2).unwrap())?;
             ostream.flush()?;
 
             println!("Press Enter to continue...");
-            stdin().read(&mut [0]).unwrap();
+            if cfg!(windows) {
+                // on windows, one enter keypress is two bytes (presumably CR + LF)
+                stdin().read_exact(&mut [0, 0]).unwrap();
+            } else {
+                // assume that one enter keypress is one byte on other platforms
+                stdin().read_exact(&mut [0]).unwrap();
+            }
         }
     } else {
         println!("No solution found")
