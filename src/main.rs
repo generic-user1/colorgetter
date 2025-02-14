@@ -12,7 +12,7 @@ use std::time::Instant;
 fn main() -> io::Result<()> {
     println!("Base gamestate:");
     const SIMPLE_GS: bool = true;
-    const MAX_DEPTH: u8 = if SIMPLE_GS { 21 } else { 63 };
+    const MAX_DEPTH: u8 = if SIMPLE_GS { 21 } else { 41 };
     const USE_THREADING: bool = true;
     let base_gamestate: GameState<14, 4> = if !SIMPLE_GS {
         [
