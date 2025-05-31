@@ -122,10 +122,7 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
         )
         .is_some()
         {
-            Arc::into_inner(thread_output.clone())
-                .unwrap()
-                .into_inner()
-                .unwrap()
+            thread_output.read().unwrap().clone()
         } else {
             None
         };
@@ -138,6 +135,10 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
         }
         let initial_gamestates_to_try: Vec<usize> =
             state.gamestates_to_try.iter().map(|i| i.1).collect();
+
+        if initial_gamestates_to_try.is_empty() {
+            return None;
+        }
 
         let mut handles = Vec::new();
 

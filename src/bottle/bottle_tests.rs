@@ -35,14 +35,34 @@ fn test_bottle_resize() {
 
     let mut in_place_resized_bottle = base_bottle.clone();
 
-    in_place_resized_bottle.resize_in_place(3);
+    let resize_result = in_place_resized_bottle.resize_in_place(3);
+    assert!(resize_result.is_ok());
     assert_eq!(in_place_resized_bottle.get_capacity(), 3);
     assert_eq!(
         in_place_resized_bottle.get_content(),
         &bottle_base_content[..3]
     );
 
-    in_place_resized_bottle.resize_in_place(5);
+    // ensure we still succeed up to MAX_CAP of 8
+    let resize_result = in_place_resized_bottle.resize_in_place(8);
+    assert!(resize_result.is_ok());
+    assert_eq!(in_place_resized_bottle.get_capacity(), 8);
+    assert_eq!(
+        in_place_resized_bottle.get_content(),
+        &bottle_base_content[..3]
+    );
+
+    // ensure we fail beyond MAX_CAP of 8
+    let resize_result = in_place_resized_bottle.resize_in_place(9);
+    assert!(resize_result.is_err());
+    assert_eq!(in_place_resized_bottle.get_capacity(), 8);
+    assert_eq!(
+        in_place_resized_bottle.get_content(),
+        &bottle_base_content[..3]
+    );
+
+    let resize_result = in_place_resized_bottle.resize_in_place(5);
+    assert!(resize_result.is_ok());
     assert_eq!(in_place_resized_bottle.get_capacity(), 5);
     assert_eq!(
         in_place_resized_bottle.get_content(),

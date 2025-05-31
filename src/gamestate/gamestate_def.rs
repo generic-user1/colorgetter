@@ -6,7 +6,14 @@ use crossterm::{
     QueueableCommand
 };
 use heapless::Vec;
-use std::{hash::Hash, io, num::NonZeroUsize, slice::SliceIndex, usize};
+use std::{
+    hash::Hash,
+    io,
+    num::NonZeroUsize,
+    ops::{Bound, RangeBounds},
+    slice::SliceIndex,
+    usize
+};
 
 /// The state a particular game is in
 ///
@@ -19,33 +26,54 @@ pub struct GameState<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> {
 impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState<MAX_BCOUNT, B_MAX_CAP> {
     /// Queues the display of this entire GameState for the given `ostream` (typically [std::io::stdout])
     ///
+    /// `selected`, if provided, specifies a [ColoredWaterUnit](crate::colored_water::ColoredWaterUnit) to display as being selected.
+    /// It is interpreted as `(bottleIdx, unitIdx)` where `bottleIdx` is the index of the bottle and `unitIdx` is the index of the
+    /// [ColoredWaterUnit](crate::colored_water::ColoredWaterUnit) within that bottle (`0` being the bottom unit).
+    /// Providing [None] or out-of-bounds coordinates results in no unit being displayed as selected.
+    /// If `bottleIdx` is specified but `unitIdx` isn't, then an entire bottle will be displayed as selected (assuming the `bottleIdx`
+    /// is in-bounds).
+    ///
     /// Does not flush; the caller must call flush on `ostream` in order to actually display the GameState.
     ///
     /// If you want to queue some arbitrary portion of this GameState, see [GameState::queue_display_partial]
-    pub fn queue_display_full<T: QueueableCommand>(&self, ostream: &mut T) -> io::Result<()> {
-        self.queue_display_partial(ostream, ..)
+    pub fn queue_display_full<T: QueueableCommand>(
+        &self,
+        ostream: &mut T,
+        selected: Option<(usize, Option<usize>)>
+    ) -> io::Result<()> {
+        self.queue_display_partial(ostream, .., selected)
     }
 
     /// Queues the display of some portion of this GameState for the given `ostream` (typically [std::io::stdout])
     /// Only queues for display bottles that are within the specified `range`.
+    ///
+    /// `selected`, if provided, specifies a [ColoredWaterUnit](crate::colored_water::ColoredWaterUnit) to display as being selected.
+    /// It is interpreted as `(bottleIdx, unitIdx)` where `bottleIdx` is the index of the bottle and `unitIdx` is the index of the
+    /// [ColoredWaterUnit](crate::colored_water::ColoredWaterUnit) within that bottle (`0` being the bottom unit).
+    /// Providing [None] or out-of-bounds coordinates results in no unit being displayed as selected.
+    /// If `bottleIdx` is specified but `unitIdx` isn't, then an entire bottle will be displayed as selected (assuming the `bottleIdx`
+    /// is in-bounds).
     ///
     /// Does not flush; the caller must call flush on `ostream` in order to actually display the GameState.
     ///
     /// If you want to queue this entire GameState for display, see [GameState::queue_display_full]
     pub fn queue_display_partial<
         T: QueueableCommand,
-        V: SliceIndex<[Bottle<B_MAX_CAP>], Output = [Bottle<B_MAX_CAP>]> + Clone
+        V: RangeBounds<usize> + SliceIndex<[Bottle<B_MAX_CAP>], Output = [Bottle<B_MAX_CAP>]> + Clone
     >(
         &self,
         ostream: &mut T,
-        range: V
+        range: V,
+        selected: Option<(usize, Option<usize>)>
     ) -> io::Result<()> {
         const FILLED: char = '█';
-        const EMPTY: char = '▒';
+        const EMPTY: char = '░';
+        const SELECTED: char = '▓';
         const NOTHING: char = ' ';
 
-        // Cursor movement doesn't appear to work right on Windows, so we use regular characters.
-        // Using an alternate screen might make cursor movement work though, so this is left as an option for now.
+        // Cursor movement doesn't appear to work right on Windows when terminal isn't in alternate screen, so we use regular characters.
+        // Notably, regular characters work fine on both standard and alternate screens.
+        // This is left as an option for testing; eventually, the plan is to use cursor movement only.
         const USE_CURSOR: bool = false;
 
         // the row count here is still determined by the maximum capacity of any bottle in this gamestate
@@ -53,7 +81,24 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState<MAX_BCOUNT, B_MA
         // outputs of consistent height, even if the first and second halves have differing max capacities within them
         if let Some(row_count) = self.bottles.iter().map(|b| b.get_capacity()).max() {
             for row_index in (0..row_count).rev() {
-                for bottle in &self.bottles[range.clone()] {
+                for (bottle_offset, bottle) in self.bottles[range.clone()].iter().enumerate() {
+                    let bottle_idx = match range.start_bound() {
+                        Bound::Excluded(&base) => base + bottle_offset + 1,
+                        Bound::Included(&base) => base + bottle_offset,
+                        Bound::Unbounded => bottle_offset
+                    };
+
+                    let is_selected = if let Some((sel_b_idx, sel_r_idx)) = selected {
+                        bottle_idx == sel_b_idx
+                            && if let Some(sel_r_idx) = sel_r_idx {
+                                row_index == sel_r_idx
+                            } else {
+                                true
+                            }
+                    } else {
+                        false
+                    };
+
                     if bottle.get_capacity() < (row_index + 1) {
                         // if capacity is less than row index + 1 (row_index is 0-based so we add 1 for 1-based),
                         // this bottle doesn't have the capacity to reach here, so we print nothing
@@ -68,13 +113,12 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState<MAX_BCOUNT, B_MA
                                 foreground_color: Some(color.into()),
                                 ..Default::default()
                             },
-                            FILLED
+                            if is_selected { SELECTED } else { FILLED }
                         );
                         ostream.queue(PrintStyledContent(styled_content))?;
                     } else {
-                        // bottle has capacity to reach here, but there's no content there;
-                        // print empty space
-                        ostream.queue(Print(EMPTY))?;
+                        // bottle has capacity to reach here, but there's no content there
+                        ostream.queue(Print(if is_selected { SELECTED } else { EMPTY }))?;
                     }
                     // print an empty space between bottles
                     if USE_CURSOR {
@@ -104,17 +148,25 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState<MAX_BCOUNT, B_MA
     /// Note that if the number of bottles is not evenly divisible by `row_count`, the size of the final row
     /// may be inconsistent with the size of earlier rows, and there may be fewer rows than `row_count`.
     ///
+    /// `selected`, if provided, specifies a [ColoredWaterUnit](crate::colored_water::ColoredWaterUnit) to display as being selected.
+    /// It is interpreted as `(bottleIdx, unitIdx)` where `bottleIdx` is the index of the bottle and `unitIdx` is the index of the
+    /// [ColoredWaterUnit](crate::colored_water::ColoredWaterUnit) within that bottle (`0` being the bottom unit).
+    /// Providing [None] or out-of-bounds coordinates results in no unit being displayed as selected.
+    /// If `bottleIdx` is specified but `unitIdx` isn't, then an entire bottle will be displayed as selected (assuming the `bottleIdx`
+    /// is in-bounds).
+    ///
     /// Does not flush; the caller must call flush on `ostream` in order to actually display the GameState.
     pub fn queue_display_rows<T: QueueableCommand>(
         &self,
         ostream: &mut T,
-        row_count: NonZeroUsize
+        row_count: NonZeroUsize,
+        selected: Option<(usize, Option<usize>)>
     ) -> io::Result<()> {
         let row_count = row_count.get();
         // if our row count is 1, just use the full display function as that'll do the job and we don't
         // need to worry about wonky math. from this point on, we can assume that row_count >= 2.
         if row_count == 1 {
-            return self.queue_display_full(ostream);
+            return self.queue_display_full(ostream, selected);
         }
 
         let row_length = (self.bottles.len() + (row_count - 1)) / row_count;
@@ -123,7 +175,7 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState<MAX_BCOUNT, B_MA
         let mut range_end = row_length;
         loop {
             let range = range_start..(range_end.min(self.bottles.len()));
-            self.queue_display_partial(ostream, range)?;
+            self.queue_display_partial(ostream, range, selected)?;
 
             range_start = range_end;
             range_end += row_length;

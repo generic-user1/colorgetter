@@ -64,6 +64,48 @@ impl<const MAX_CAP: usize> Bottle<MAX_CAP> {
         &self.content
     }
 
+    /// Try to set the [ColoredWaterUnit] at index `idx` within this bottle to the given `new_color`
+    ///
+    /// If `new_color` is [None], will instead try to clear the [ColoredWaterUnit] at the given `idx` so that it becomes empty.
+    ///
+    /// If this fails (i.e. returns [Err]), the Bottle will be left unchanged.
+    pub fn try_set_color(
+        &mut self,
+        idx: usize,
+        new_color: Option<ColoredWaterUnit>
+    ) -> Result<(), ColorSetError> {
+        if idx > self.content.len() {
+            //trying to set color more than 1 above our current highest
+            Err(ColorSetError::EmptyBelow)
+        } else if idx == self.content.len() {
+            //trying to set color one above our current highest
+            if self.content.len() + 1 > self.capacity {
+                Err(ColorSetError::ExceedsCapacity)
+            } else {
+                if let Some(new_color) = new_color {
+                    self.content.push(new_color).unwrap();
+                }
+                Ok(())
+            }
+        } else if (idx + 1) == self.content.len() {
+            //trying to set our current highest color
+            if let Some(new_color) = new_color {
+                *self.content.get_mut(idx).unwrap() = new_color;
+            } else {
+                self.content.pop();
+            }
+            Ok(())
+        } else {
+            //trying to set a color below our highest color
+            if let Some(new_color) = new_color {
+                *self.content.get_mut(idx).unwrap() = new_color;
+                Ok(())
+            } else {
+                Err(ColorSetError::FullAbove)
+            }
+        }
+    }
+
     /// Return the capacity of this Bottle.
     pub const fn get_capacity(&self) -> usize {
         self.capacity
@@ -78,10 +120,17 @@ impl<const MAX_CAP: usize> Bottle<MAX_CAP> {
     ///
     /// If `new_capacity` is larger than current capacity, empty space will be added to the 'top' of the Bottle.
     /// If `new_capacity` is smaller than current capacity, space (and any water in that space) will be removed from the 'top' of the Bottle.
-    pub fn resize_in_place(&mut self, new_capacity: usize) {
-        self.capacity = new_capacity;
-        if self.content.len() > self.capacity {
-            self.content.truncate(self.capacity);
+    ///
+    /// This will fail if `new_capacity` is greater than `MAX_CAP`
+    pub fn resize_in_place(&mut self, new_capacity: usize) -> Result<(), BottleCapacityError> {
+        if new_capacity > MAX_CAP {
+            Err(BottleCapacityError::MaxCapExceeded)
+        } else {
+            self.capacity = new_capacity;
+            if self.content.len() > self.capacity {
+                self.content.truncate(self.capacity);
+            }
+            Ok(())
         }
     }
 
@@ -334,6 +383,19 @@ impl<const MAX_CAP: usize> PartialOrd for Bottle<MAX_CAP> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
+}
+
+///Reasons that setting a [ColoredWaterUnit] within a [Bottle] may fail.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ColorSetError {
+    /// Attempted to set a color at a location that has empty space below it
+    EmptyBelow,
+
+    /// Attempted to set a color to empty at a location that has non-empty space above it
+    FullAbove,
+
+    /// Attempted to set a color to a location beyond the capacity of the destination [Bottle]
+    ExceedsCapacity
 }
 
 ///Reasons that pouring a [ColoredWaterRun] into a [Bottle] may fail.

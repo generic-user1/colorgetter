@@ -25,6 +25,54 @@ pub enum ColoredWaterUnit {
     Brown = 11
 }
 
+impl ColoredWaterUnit {
+    /// Return the 'next' variant, or [None] if there is no next variant
+    pub fn next(&self) -> Option<ColoredWaterUnit> {
+        match self {
+            Self::Red => Some(Self::Maroon),
+            Self::Maroon => Some(Self::Lime),
+            Self::Lime => Some(Self::Green),
+            Self::Green => Some(Self::Aqua),
+            Self::Aqua => Some(Self::Blue),
+            Self::Blue => Some(Self::Yellow),
+            Self::Yellow => Some(Self::Orange),
+            Self::Orange => Some(Self::Pink),
+            Self::Pink => Some(Self::Purple),
+            Self::Purple => Some(Self::Tan),
+            Self::Tan => Some(Self::Brown),
+            Self::Brown => None
+        }
+    }
+
+    /// Return the 'previous' variant, or [None] if there is no previous variant
+    pub fn prev(&self) -> Option<ColoredWaterUnit> {
+        match self {
+            Self::Red => None,
+            Self::Maroon => Some(Self::Red),
+            Self::Lime => Some(Self::Maroon),
+            Self::Green => Some(Self::Lime),
+            Self::Aqua => Some(Self::Green),
+            Self::Blue => Some(Self::Aqua),
+            Self::Yellow => Some(Self::Blue),
+            Self::Orange => Some(Self::Yellow),
+            Self::Pink => Some(Self::Orange),
+            Self::Purple => Some(Self::Pink),
+            Self::Tan => Some(Self::Purple),
+            Self::Brown => Some(Self::Tan)
+        }
+    }
+
+    /// Return the 'first' variant
+    pub fn first() -> ColoredWaterUnit {
+        Self::Red
+    }
+
+    /// Return the 'last' variant
+    pub fn last() -> ColoredWaterUnit {
+        Self::Brown
+    }
+}
+
 impl From<ColoredWaterRun> for Vec<ColoredWaterUnit> {
     fn from(value: ColoredWaterRun) -> Self {
         let mut out = Vec::with_capacity(value.size);
