@@ -240,7 +240,7 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
                     .all_gamestates
                     .get_by_left(&gamestate_to_try_idx)
                     .unwrap();
-                if layer_idx > max_depth {
+                if layer_idx > max_depth && max_depth > 0 {
                     // put the state we just popped off back onto gamestates_to_try so that someone looking
                     // at our solutionstate can see what we were about to do
                     state

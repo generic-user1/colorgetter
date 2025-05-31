@@ -11,7 +11,7 @@ use std::time::Instant;
 
 fn main() -> Result<(), UiCreationError> {
     const MAX_DEPTH: u8 = 0;
-    const USE_THREADING: bool = true;
+    const USE_THREADING: bool = false;
     let ui = Ui::try_new()?;
 
     match ui.setup_menu_loop::<15, 15>() {

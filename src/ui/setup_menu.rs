@@ -84,7 +84,7 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> MenuState<MAX_BCOUNT, B_MA
         };
         ostream.queue(PrintStyledContent(StyledContent::new(
             exit_prompt_style,
-            "\nSave and Exit"
+            "\nSave and Solve"
         )))?;
 
         Ok(())
@@ -119,8 +119,7 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> MenuState<MAX_BCOUNT, B_MA
                                 //we need to know two things: is there a 'next' bottle, and is our current c_idx in its bounds?
                                 let new_b_idx = b_idx + 1;
                                 if let Some(bottle) = self.gs.bottles.get(new_b_idx) {
-                                    let new_c_idx =
-                                        c_idx.min(bottle.get_capacity().saturating_sub(1));
+                                    let new_c_idx = c_idx.min(bottle.get_content().len());
                                     self.c_state = CursorState::Content {
                                         b_idx: new_b_idx,
                                         c_idx: new_c_idx
@@ -176,8 +175,7 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> MenuState<MAX_BCOUNT, B_MA
                             CursorState::Content { b_idx, c_idx } => {
                                 let new_b_idx = b_idx.saturating_sub(1);
                                 if let Some(bottle) = self.gs.bottles.get(new_b_idx) {
-                                    let new_c_idx =
-                                        c_idx.min(bottle.get_capacity().saturating_sub(1));
+                                    let new_c_idx = c_idx.min(bottle.get_content().len());
                                     self.c_state = CursorState::Content {
                                         b_idx: new_b_idx,
                                         c_idx: new_c_idx
