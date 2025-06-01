@@ -33,15 +33,20 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState<MAX_BCOUNT, B_MA
     /// If `bottleIdx` is specified but `unitIdx` isn't, then an entire bottle will be displayed as selected (assuming the `bottleIdx`
     /// is in-bounds).
     ///
+    /// `pour`, if provided, specifies a [Pour] to display as having been applied to the GameState. If the [Pour::source_bottle_index]
+    /// or [Pour::dest_bottle_index] are out of bounds, the source or destination bottles will not be marked. Notably, this does not
+    /// check if the [Pour] could be converted into a [ValidPour] - it simply marks the indicated [Bottle]s as 'F' (from) and 'T' (to).
+    ///
     /// Does not flush; the caller must call flush on `ostream` in order to actually display the GameState.
     ///
     /// If you want to queue some arbitrary portion of this GameState, see [GameState::queue_display_partial]
     pub fn queue_display_full<T: QueueableCommand>(
         &self,
         ostream: &mut T,
-        selected: Option<(usize, Option<usize>)>
+        selected: Option<(usize, Option<usize>)>,
+        pour: Option<&Pour>
     ) -> io::Result<()> {
-        self.queue_display_partial(ostream, .., selected)
+        self.queue_display_partial(ostream, .., selected, pour)
     }
 
     /// Queues the display of some portion of this GameState for the given `ostream` (typically [std::io::stdout])
@@ -54,6 +59,10 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState<MAX_BCOUNT, B_MA
     /// If `bottleIdx` is specified but `unitIdx` isn't, then an entire bottle will be displayed as selected (assuming the `bottleIdx`
     /// is in-bounds).
     ///
+    /// `pour`, if provided, specifies a [Pour] to display as having been applied to the GameState. If the [Pour::source_bottle_index]
+    /// or [Pour::dest_bottle_index] are out of bounds, the source or destination bottles will not be marked. Notably, this does not
+    /// check if the [Pour] could be converted into a [ValidPour] - it simply marks the indicated [Bottle]s as 'F' (from) and 'T' (to).
+    ///
     /// Does not flush; the caller must call flush on `ostream` in order to actually display the GameState.
     ///
     /// If you want to queue this entire GameState for display, see [GameState::queue_display_full]
@@ -64,12 +73,15 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState<MAX_BCOUNT, B_MA
         &self,
         ostream: &mut T,
         range: V,
-        selected: Option<(usize, Option<usize>)>
+        selected: Option<(usize, Option<usize>)>,
+        pour: Option<&Pour>
     ) -> io::Result<()> {
         const FILLED: char = '█';
         const EMPTY: char = '░';
         const SELECTED: char = '▓';
         const NOTHING: char = ' ';
+        const FROM: char = 'F';
+        const TO: char = 'T';
 
         // Cursor movement doesn't appear to work right on Windows when terminal isn't in alternate screen
         const USE_CURSOR: bool = true;
@@ -88,6 +100,12 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState<MAX_BCOUNT, B_MA
         };
 
         if let Some(row_count) = row_count {
+            //add 1 to row count if we're displaying a pour to make space for the 'T' and/or 'F' indicators
+            let row_count = if pour.is_some() {
+                row_count + 1
+            } else {
+                row_count
+            };
             for row_index in (0..row_count).rev() {
                 for (bottle_offset, bottle) in self.bottles[range.clone()].iter().enumerate() {
                     let bottle_idx = match range.start_bound() {
@@ -109,8 +127,26 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState<MAX_BCOUNT, B_MA
 
                     if bottle.get_capacity() < (row_index + 1) {
                         // if capacity is less than row index + 1 (row_index is 0-based so we add 1 for 1-based),
-                        // this bottle doesn't have the capacity to reach here, so we print nothing
-                        if USE_CURSOR {
+                        // this bottle doesn't have the capacity to reach here.
+
+                        if let Some(pour) = pour {
+                            // if we have a pour to display, and we're 1 row above the source or dest bottle, print
+                            // the appropriate indicator
+                            if bottle.get_capacity() == row_index {
+                                if bottle_idx == pour.source_bottle_index {
+                                    ostream.queue(Print(FROM))?;
+                                } else if bottle_idx == pour.dest_bottle_index {
+                                    ostream.queue(Print(TO))?;
+                                } else {
+                                    //this bottle isn't our source or dest!
+                                    if USE_CURSOR {
+                                        ostream.queue(MoveRight(1))?;
+                                    } else {
+                                        ostream.queue(Print(NOTHING))?;
+                                    }
+                                }
+                            }
+                        } else if USE_CURSOR {
                             ostream.queue(MoveRight(1))?;
                         } else {
                             ostream.queue(Print(NOTHING))?;
@@ -163,18 +199,23 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState<MAX_BCOUNT, B_MA
     /// If `bottleIdx` is specified but `unitIdx` isn't, then an entire bottle will be displayed as selected (assuming the `bottleIdx`
     /// is in-bounds).
     ///
+    /// `pour`, if provided, specifies a [Pour] to display as having been applied to the GameState. If the [Pour::source_bottle_index]
+    /// or [Pour::dest_bottle_index] are out of bounds, the source or destination bottles will not be marked. Notably, this does not
+    /// check if the [Pour] could be converted into a [ValidPour] - it simply marks the indicated [Bottle]s as 'F' (from) and 'T' (to).
+    ///
     /// Does not flush; the caller must call flush on `ostream` in order to actually display the GameState.
     pub fn queue_display_rows<T: QueueableCommand>(
         &self,
         ostream: &mut T,
         row_count: NonZeroUsize,
-        selected: Option<(usize, Option<usize>)>
+        selected: Option<(usize, Option<usize>)>,
+        pour: Option<&Pour>
     ) -> io::Result<()> {
         let row_count = row_count.get();
         // if our row count is 1, just use the full display function as that'll do the job and we don't
         // need to worry about wonky math. from this point on, we can assume that row_count >= 2.
         if row_count == 1 {
-            return self.queue_display_full(ostream, selected);
+            return self.queue_display_full(ostream, selected, pour);
         }
 
         let row_length = (self.bottles.len() + (row_count - 1)) / row_count;
@@ -183,7 +224,7 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState<MAX_BCOUNT, B_MA
         let mut range_end = row_length;
         loop {
             let range = range_start..(range_end.min(self.bottles.len()));
-            self.queue_display_partial(ostream, range, selected)?;
+            self.queue_display_partial(ostream, range, selected, pour)?;
 
             range_start = range_end;
             range_end += row_length;

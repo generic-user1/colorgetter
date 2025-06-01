@@ -72,7 +72,8 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> MenuState<MAX_BCOUNT, B_MA
                 CursorState::Capacity { b_idx } => Some((b_idx, None)),
                 CursorState::Content { b_idx, c_idx } => Some((b_idx, Some(c_idx))),
                 _ => None
-            }
+            },
+            None
         )?;
         ostream.queue(MoveDown(1))?;
 

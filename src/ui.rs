@@ -73,7 +73,7 @@ impl Ui {
     /// Runs a loop that displays the viewer for a [Solution](crate::solution::Solution)
     pub fn solution_viewer_loop<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
         &self,
-        solution: Solution<MAX_BCOUNT, B_MAX_CAP>
+        solution: &Solution<MAX_BCOUNT, B_MAX_CAP>
     ) -> Result<(), UiRunError> {
         let mut state = SolutionViewerState::new(solution);
         loop {
