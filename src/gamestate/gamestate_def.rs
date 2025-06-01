@@ -71,15 +71,23 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState<MAX_BCOUNT, B_MA
         const SELECTED: char = '▓';
         const NOTHING: char = ' ';
 
-        // Cursor movement doesn't appear to work right on Windows when terminal isn't in alternate screen, so we use regular characters.
-        // Notably, regular characters work fine on both standard and alternate screens.
-        // This is left as an option for testing; eventually, the plan is to use cursor movement only.
-        const USE_CURSOR: bool = false;
+        // Cursor movement doesn't appear to work right on Windows when terminal isn't in alternate screen
+        const USE_CURSOR: bool = true;
 
-        // the row count here is still determined by the maximum capacity of any bottle in this gamestate
-        // so that calling queue_display_partial twice (once on 'left half', once on 'right half') results in two
-        // outputs of consistent height, even if the first and second halves have differing max capacities within them
-        if let Some(row_count) = self.bottles.iter().map(|b| b.get_capacity()).max() {
+        // Determine row count from max capacity of any bottle in this gamestate (true),
+        // or only consider bottles in this range (false)
+        const ROW_COUNT_FROM_GLOBAL_MAX: bool = false;
+
+        let row_count = if ROW_COUNT_FROM_GLOBAL_MAX {
+            self.bottles.iter().map(|b| b.get_capacity()).max()
+        } else {
+            self.bottles[range.clone()]
+                .iter()
+                .map(|b| b.get_capacity())
+                .max()
+        };
+
+        if let Some(row_count) = row_count {
             for row_index in (0..row_count).rev() {
                 for (bottle_offset, bottle) in self.bottles[range.clone()].iter().enumerate() {
                     let bottle_idx = match range.start_bound() {

@@ -1,3 +1,4 @@
+use super::UiRunError;
 use crate::{bottle::Bottle, colored_water::ColoredWaterUnit, gamestate::GameState};
 use crossterm::{
     cursor::{MoveDown, MoveToColumn},
@@ -61,8 +62,9 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> MenuState<MAX_BCOUNT, B_MA
         };
         ostream.queue(PrintStyledContent(StyledContent::new(
             bcount_style,
-            format!("{:>3}\n\n", self.gs.bottles.len())
+            format!("{:>3}", self.gs.bottles.len())
         )))?;
+        ostream.queue(MoveDown(2))?.queue(MoveToColumn(0))?;
         self.gs.queue_display_rows(
             ostream,
             NonZeroUsize::new(2).unwrap(),
@@ -72,6 +74,7 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> MenuState<MAX_BCOUNT, B_MA
                 _ => None
             }
         )?;
+        ostream.queue(MoveDown(1))?;
 
         let exit_prompt_style = if self.c_state == CursorState::Exit {
             ContentStyle {
@@ -84,13 +87,13 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> MenuState<MAX_BCOUNT, B_MA
         };
         ostream.queue(PrintStyledContent(StyledContent::new(
             exit_prompt_style,
-            "\nSave and Solve"
+            "Save and Solve"
         )))?;
 
         Ok(())
     }
 
-    pub fn handle_event(&mut self, event: Event) -> Result<(), SetupMenuError> {
+    pub fn handle_event(&mut self, event: Event) -> Result<(), UiRunError> {
         if let Event::Key(event) = event {
             match event {
                 KeyEvent {
@@ -98,7 +101,7 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> MenuState<MAX_BCOUNT, B_MA
                     modifiers: m,
                     kind: KeyEventKind::Press,
                     ..
-                } if m.contains(KeyModifiers::CONTROL) => return Err(SetupMenuError::ExitRequest),
+                } if m.contains(KeyModifiers::CONTROL) => return Err(UiRunError::ExitRequest),
 
                 KeyEvent {
                     code: KeyCode::Right,
@@ -296,7 +299,7 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> MenuState<MAX_BCOUNT, B_MA
                     ..
                 } if k == KeyEventKind::Press || k == KeyEventKind::Repeat => match self.c_state {
                     CursorState::Count => {
-                        return Err(SetupMenuError::ExitRequest);
+                        return Err(UiRunError::ExitRequest);
                     }
                     CursorState::Capacity { .. } => {
                         self.c_state = CursorState::Count;
@@ -317,21 +320,5 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> MenuState<MAX_BCOUNT, B_MA
         }
 
         Ok(())
-    }
-}
-
-/// Reasons why running the setup menu may not produce a [GameState]
-#[derive(Debug)]
-pub enum SetupMenuError {
-    /// An IO error prevented the menu from working correctly
-    IOError(io::Error),
-
-    /// The user requested to exit the program using CTRL + C or ESC
-    ExitRequest
-}
-
-impl From<io::Error> for SetupMenuError {
-    fn from(value: io::Error) -> Self {
-        SetupMenuError::IOError(value)
     }
 }

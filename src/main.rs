@@ -1,6 +1,6 @@
 use colorgetter::{
     solution::Solution,
-    ui::{SetupMenuError, Ui, UiCreationError}
+    ui::{Ui, UiCreationError, UiRunError}
 };
 use std::{
     io::{stdin, stdout, Read, Write},
@@ -15,8 +15,8 @@ fn main() -> Result<(), UiCreationError> {
     let ui = Ui::try_new()?;
 
     match ui.setup_menu_loop::<15, 15>() {
-        Err(SetupMenuError::IOError(e)) => Err(e.into()),
-        Err(SetupMenuError::ExitRequest) => Ok(()),
+        Err(UiRunError::IOError(e)) => Err(e.into()),
+        Err(UiRunError::ExitRequest) => Ok(()),
         Ok(gs) => {
             drop(ui);
             println!("Base gamestate:");

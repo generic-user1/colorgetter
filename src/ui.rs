@@ -17,14 +17,16 @@ use crossterm::{
     },
     QueueableCommand
 };
-use setup_menu::MenuState;
 
-use crate::gamestate::GameState;
+use crate::{gamestate::GameState, solution::Solution};
 
 static UI_EXISTS: AtomicBool = AtomicBool::new(false);
 
 mod setup_menu;
-pub use setup_menu::SetupMenuError;
+use setup_menu::MenuState;
+
+mod solution_viewer;
+use solution_viewer::SolutionViewerState;
 
 /// A struct that represents the user interface. Create an instance of it to set up the UI,
 /// use the associated functions to make the UI work, and drop the instance to destroy the UI
@@ -51,10 +53,10 @@ impl Ui {
         }
     }
 
-    /// Runs a loop that displays the menu for setting up a GameState to be solved.
+    /// Runs a loop that displays the menu for setting up a [GameState](crate::gamestate::GameState) to be solved.
     pub fn setup_menu_loop<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
         &self
-    ) -> Result<GameState<MAX_BCOUNT, B_MAX_CAP>, SetupMenuError> {
+    ) -> Result<GameState<MAX_BCOUNT, B_MAX_CAP>, UiRunError> {
         let mut state = MenuState::new();
         loop {
             let mut out = stdout();
@@ -64,6 +66,24 @@ impl Ui {
             state.handle_event(event::read()?)?;
             if state.should_exit {
                 break Ok(state.gs);
+            }
+        }
+    }
+
+    /// Runs a loop that displays the viewer for a [Solution](crate::solution::Solution)
+    pub fn solution_viewer_loop<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
+        &self,
+        solution: Solution<MAX_BCOUNT, B_MAX_CAP>
+    ) -> Result<(), UiRunError> {
+        let mut state = SolutionViewerState::new(solution);
+        loop {
+            let mut out = stdout();
+            out.queue(Clear(ClearType::All))?.queue(MoveTo(0, 0))?;
+            state.queue_display(&mut out)?;
+            out.flush()?;
+            state.handle_event(event::read()?)?;
+            if state.should_exit {
+                break Ok(());
             }
         }
     }
@@ -107,5 +127,21 @@ pub enum UiCreationError {
 impl From<io::Error> for UiCreationError {
     fn from(value: io::Error) -> Self {
         UiCreationError::IOError(value)
+    }
+}
+
+/// Reasons why running the a portion of the [Ui] may end unexpectedly
+#[derive(Debug)]
+pub enum UiRunError {
+    /// An IO error prevented the [Ui] from working correctly
+    IOError(io::Error),
+
+    /// The user requested to exit the program using CTRL + C or ESC
+    ExitRequest
+}
+
+impl From<io::Error> for UiRunError {
+    fn from(value: io::Error) -> Self {
+        UiRunError::IOError(value)
     }
 }
