@@ -9,7 +9,7 @@ use std::{
 
 use bimap::BiHashMap;
 
-use crate::gamestate::{GameState, Pour};
+use crate::gamestate::{GameState, Pour, PourError};
 
 type ThreadOutput = Arc<RwLock<Option<VecDeque<Pour>>>>;
 
@@ -77,6 +77,24 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
         Self::find_solving_pours_threaded(solution_state, max_depth).map(|pours| Self {
             base_gamestate,
             pours
+        })
+    }
+
+    /// Try to create a [Solution] given a base [GameState] to solve and some iterable of [Pour]s to apply in order
+    pub fn try_from_parts<T: IntoIterator<Item = Pour>>(
+        base_gamestate: &'a GameState<BCOUNT, BSIZE>,
+        pours: T
+    ) -> Result<Self, SolutionFromPartsError> {
+        let mut working_gs = base_gamestate.clone();
+        let mut owned_pours: VecDeque<Pour> = VecDeque::new();
+        for pour in pours {
+            let as_valid = pour.try_into_valid(&working_gs)?;
+            working_gs = as_valid.apply();
+            owned_pours.push_back(pour);
+        }
+        Ok(Self {
+            base_gamestate,
+            pours: owned_pours
         })
     }
 
@@ -337,5 +355,26 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
 
     pub fn get_pours(&self) -> &VecDeque<Pour> {
         &self.pours
+    }
+
+    pub fn take_pours(self) -> VecDeque<Pour> {
+        self.pours
+    }
+}
+
+/// Reasons running [Solution::try_from_parts] may fail
+#[derive(Debug)]
+pub enum SolutionFromPartsError {
+    /// Encountered a [PourError] while checking that [Pour]s are valid
+    PourError(PourError),
+
+    /// The sequence of [Pour]s is valid for the given [GameState], but
+    /// does not result in a finished [GameState]
+    DoesNotFinish
+}
+
+impl From<PourError> for SolutionFromPartsError {
+    fn from(value: PourError) -> Self {
+        SolutionFromPartsError::PourError(value)
     }
 }

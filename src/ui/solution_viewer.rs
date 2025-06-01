@@ -95,6 +95,16 @@ impl<'a, 'b, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>
                         self.should_exit = true;
                     }
                 }
+                KeyEvent {
+                    code: KeyCode::Enter,
+                    kind: k,
+                    ..
+                } if k == KeyEventKind::Press || k == KeyEventKind::Repeat => {
+                    let inc_result = self.try_inc_current_pour_idx();
+                    if inc_result.is_err() {
+                        self.should_exit = true;
+                    }
+                }
                 _ => ()
             }
         }

@@ -3,7 +3,8 @@
 use std::{
     io::{self, stdout, Write},
     marker::PhantomData,
-    sync::atomic::{AtomicBool, Ordering}
+    sync::atomic::{AtomicBool, Ordering},
+    time::Duration
 };
 
 use core::ops::Drop;
@@ -24,6 +25,9 @@ static UI_EXISTS: AtomicBool = AtomicBool::new(false);
 
 mod setup_menu;
 use setup_menu::MenuState;
+
+mod solution_wait_screen;
+use solution_wait_screen::{GetSolutionError, WaitScreenState};
 
 mod solution_viewer;
 use solution_viewer::SolutionViewerState;
@@ -53,7 +57,7 @@ impl Ui {
         }
     }
 
-    /// Runs a loop that displays the menu for setting up a [GameState](crate::gamestate::GameState) to be solved.
+    /// Runs a loop that displays the menu for setting up a [GameState] to be solved.
     pub fn setup_menu_loop<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
         &self
     ) -> Result<GameState<MAX_BCOUNT, B_MAX_CAP>, UiRunError> {
@@ -70,7 +74,43 @@ impl Ui {
         }
     }
 
-    /// Runs a loop that displays the viewer for a [Solution](crate::solution::Solution)
+    /// Runs a loop that handles display and input while the given [GameState] is solved
+    /// in the background.
+    ///
+    /// Returns an [`Option<Solution>`]; if [None], no solution could be found.
+    pub fn solution_finding_loop<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
+        &self,
+        gamestate_to_solve: &'a GameState<MAX_BCOUNT, B_MAX_CAP>
+    ) -> Result<Option<Solution<'a, MAX_BCOUNT, B_MAX_CAP>>, UiRunError> {
+        let mut state = WaitScreenState::new(gamestate_to_solve);
+        let mut out = stdout();
+        loop {
+            let is_finished = state.check_finished();
+            out.queue(Clear(ClearType::All))?.queue(MoveTo(0, 0))?;
+            state.queue_display(&mut out)?;
+            out.flush()?;
+
+            // wait to handle an event if we're finished;
+            // if we're not finished, handle events only if there are any events to be handled
+            if is_finished || event::poll(Duration::from_millis(16))? {
+                state.handle_event(event::read()?)?;
+            }
+
+            if state.should_exit {
+                match state.get_solution() {
+                    Ok(solution) => return Ok(Some(solution)),
+                    Err(e) => match e {
+                        GetSolutionError::NoSolutionFound => return Ok(None),
+                        GetSolutionError::NotYetFinished => {
+                            panic!("Not yet finished, but should_exit was true")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Runs a loop that displays the viewer for a [Solution]
     pub fn solution_viewer_loop<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
         &self,
         solution: &Solution<MAX_BCOUNT, B_MAX_CAP>
@@ -143,5 +183,27 @@ pub enum UiRunError {
 impl From<io::Error> for UiRunError {
     fn from(value: io::Error) -> Self {
         UiRunError::IOError(value)
+    }
+}
+
+/// All errors the [Ui] can encounter
+#[derive(Debug)]
+pub enum UiError {
+    /// Encountered a [UiCreationError] while creating the [Ui]
+    CreationError(UiCreationError),
+
+    /// Encountered a [UiRunError] while running some portion of the [Ui]
+    RunError(UiRunError)
+}
+
+impl From<UiCreationError> for UiError {
+    fn from(value: UiCreationError) -> Self {
+        Self::CreationError(value)
+    }
+}
+
+impl From<UiRunError> for UiError {
+    fn from(value: UiRunError) -> Self {
+        Self::RunError(value)
     }
 }
