@@ -3,7 +3,7 @@
 use std::{
     io::{self, stdout, Write},
     marker::PhantomData,
-    sync::atomic::{AtomicBool, Ordering},
+    sync::Mutex,
     time::Duration
 };
 
@@ -21,7 +21,7 @@ use crossterm::{
 
 use crate::{gamestate::GameState, solution::Solution};
 
-static UI_EXISTS: AtomicBool = AtomicBool::new(false);
+static UI_EXISTS: Mutex<bool> = Mutex::new(false);
 
 mod setup_menu;
 use setup_menu::MenuState;
@@ -45,11 +45,11 @@ pub struct Ui {
 impl Ui {
     /// Try to create a new instance of Ui (that is, perform setup for the user interface). This will fail if another instance of Ui already exists.
     pub fn try_new() -> Result<Self, UiCreationError> {
-        let ui_exists = UI_EXISTS.load(Ordering::SeqCst);
-        if ui_exists {
+        let mut ui_exists = UI_EXISTS.lock().unwrap();
+        if *ui_exists {
             Err(UiCreationError::UiAlreadyExists)
         } else {
-            UI_EXISTS.store(true, Ordering::SeqCst);
+            *ui_exists = true;
             Self::setup_ui()?;
             Ok(Ui {
                 _phantom: PhantomData
@@ -150,7 +150,8 @@ impl Ui {
 impl Drop for Ui {
     fn drop(&mut self) {
         Self::teardown_ui().expect("Failed to tear down UI when dropping instance of Ui");
-        UI_EXISTS.store(false, Ordering::SeqCst);
+        let mut ui_exists = UI_EXISTS.lock().unwrap();
+        *ui_exists = false;
     }
 }
 
