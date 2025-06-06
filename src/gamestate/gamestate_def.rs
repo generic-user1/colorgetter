@@ -90,6 +90,7 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState<MAX_BCOUNT, B_MA
         // or only consider bottles in this range (false)
         const ROW_COUNT_FROM_GLOBAL_MAX: bool = false;
 
+        //row count is height of highest considered bottle, plus 1 for indicators
         let row_count = if ROW_COUNT_FROM_GLOBAL_MAX {
             self.bottles.iter().map(|b| b.get_capacity()).max()
         } else {
@@ -97,15 +98,10 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState<MAX_BCOUNT, B_MA
                 .iter()
                 .map(|b| b.get_capacity())
                 .max()
-        };
+        }
+        .and_then(|x| x.checked_add(1));
 
         if let Some(row_count) = row_count {
-            //add 1 to row count if we're displaying a pour to make space for the 'T' and/or 'F' indicators
-            let row_count = if pour.is_some() {
-                row_count + 1
-            } else {
-                row_count
-            };
             for row_index in (0..row_count).rev() {
                 for (bottle_offset, bottle) in self.bottles[range.clone()].iter().enumerate() {
                     let bottle_idx = match range.start_bound() {

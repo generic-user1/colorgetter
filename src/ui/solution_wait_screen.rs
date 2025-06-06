@@ -13,6 +13,7 @@ use crossterm::{
 use std::{
     collections::VecDeque,
     io,
+    sync::{Arc, RwLock},
     thread::{self, JoinHandle},
     time::{Duration, Instant}
 };
@@ -22,7 +23,7 @@ pub(super) struct WaitScreenState<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: 
     gamestate_to_solve: &'a GameState<MAX_BCOUNT, B_MAX_CAP>,
     solver_thread_handle: Option<JoinHandle<Option<VecDeque<Pour>>>>,
     pours: Option<VecDeque<Pour>>,
-    search_end_time: Option<Instant>,
+    search_end_time: Arc<RwLock<Option<Instant>>>,
     pub should_exit: bool
 }
 
@@ -34,13 +35,20 @@ impl<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>
     ) -> WaitScreenState<'a, MAX_BCOUNT, B_MAX_CAP> {
         let gs = gamestate_to_solve.clone();
         let search_start_time = Instant::now();
-        let handle = thread::spawn(move || Solution::try_new(&gs, 0).map(|x| x.take_pours()));
+        let search_end_time = Arc::new(RwLock::new(None));
+        let search_end_time_inner = search_end_time.clone();
+        let handle = thread::spawn(move || {
+            let pours = Solution::try_new(&gs, 0).map(|x| x.take_pours());
+            let end_time = Instant::now();
+            *search_end_time_inner.write().expect("main thread panicked") = Some(end_time);
+            pours
+        });
         WaitScreenState {
             search_start_time,
             gamestate_to_solve,
             solver_thread_handle: Some(handle),
             pours: None,
-            search_end_time: None,
+            search_end_time,
             should_exit: false
         }
     }
@@ -53,7 +61,6 @@ impl<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>
             // if our thread handle still exists, the thread is either still running,
             // or has completed and we just haven't processed the result.
             if self.solver_thread_handle.as_ref().unwrap().is_finished() {
-                self.search_end_time = Some(Instant::now());
                 // take the thread handle out of the option, replacing the `self.solver_thread_handle` with None
                 let handle = self.solver_thread_handle.take().unwrap();
                 // pull the Option<VecDeque<Pour>> out of the handle, put it into self.pours
@@ -98,6 +105,8 @@ impl<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>
             Instant::now().duration_since(self.search_start_time)
         } else {
             self.search_end_time
+                .read()
+                .expect("solver thread panicked")
                 .expect("finished without end time")
                 .duration_since(self.search_start_time)
         }

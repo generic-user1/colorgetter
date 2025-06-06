@@ -44,20 +44,14 @@ impl<'a, 'b, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>
         let (displayed_gs, displayed_pour) = self.get_displayed_state_and_pour();
         if let Some(displayed_pour) = displayed_pour {
             ostream.queue(Print(format!(
-                "Step {}{}: Pour from {} to {}",
+                "Step {} of {}: Pour from {} to {}",
                 self.current_pour_idx.unwrap() + 1,
-                if self.current_pour_idx.unwrap() + 1 == self.solution.get_pours().len() {
-                    " (Final)"
-                } else {
-                    ""
-                },
+                self.solution.get_pours().len(),
                 displayed_pour.source_bottle_index + 1,
                 displayed_pour.dest_bottle_index + 1
             )))?;
         } else {
-            ostream
-                .queue(Print("Base Gamestate:"))?
-                .queue(MoveDown(1))?;
+            ostream.queue(Print("Base Gamestate:"))?;
         }
         ostream.queue(MoveDown(1))?.queue(MoveToColumn(0))?;
         displayed_gs.queue_display_rows(
