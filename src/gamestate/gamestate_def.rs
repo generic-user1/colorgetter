@@ -11,8 +11,7 @@ use std::{
     io,
     num::NonZeroUsize,
     ops::{Bound, RangeBounds},
-    slice::SliceIndex,
-    usize
+    slice::SliceIndex
 };
 
 /// The state a particular game is in
@@ -214,7 +213,7 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState<MAX_BCOUNT, B_MA
             return self.queue_display_full(ostream, selected, pour);
         }
 
-        let row_length = (self.bottles.len() + (row_count - 1)) / row_count;
+        let row_length = self.bottles.len().div_ceil(row_count);
 
         let mut range_start = 0;
         let mut range_end = row_length;
@@ -247,7 +246,7 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState<MAX_BCOUNT, B_MA
     }
 
     /// Returns an iterator over all [ValidPour](crate::gamestate::ValidPour)s you could apply to this GameState
-    pub fn iter_pours(&self) -> ValidPourIter<MAX_BCOUNT, B_MAX_CAP> {
+    pub fn iter_pours(&self) -> ValidPourIter<'_, MAX_BCOUNT, B_MAX_CAP> {
         ValidPourIter::new(self)
     }
 }

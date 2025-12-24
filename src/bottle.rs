@@ -429,17 +429,17 @@ impl From<PourInError> for PourOutError {
 /// There are four forms:
 ///
 /// - Defining a bottle with its content, a capacity, and an explicit max capacity:
-///  `bottle!([<Color>, <Color>, ...], <capacity>, <max capacity>)`
+///   `bottle!([<Color>, <Color>, ...], <capacity>, <max capacity>)`
 ///
 /// - Definining a bottle with its content and a capacity:
-///  `bottle!([<Color>, <Color>, ...], <capacity>)`
+///   `bottle!([<Color>, <Color>, ...], <capacity>)`
 ///
 /// - Defining a bottle with its content and allowing its capacity to match:
-/// `bottle!([<Color>, <Color>, ...])`
+///   `bottle!([<Color>, <Color>, ...])`
 ///
 /// - Definining a bottle with its content and allowing its capacity to match,
-/// omitting square brackets `[]` surrounding color definitions:
-/// `bottle!(<Color>, <Color>, ...)`
+///   omitting square brackets `[]` surrounding color definitions:
+///   `bottle!(<Color>, <Color>, ...)`
 ///
 /// In each form, `<Color>` may be any variant of [ColoredWaterUnit], though
 /// you can (and in fact must) omit the `ColoredWaterUnit::` snippet.
@@ -507,10 +507,10 @@ macro_rules! bottle {
 /// To match [bottle!], comes in 2 forms:
 ///
 /// - Defining water colors with square brackets:
-/// `bottle_content!([<Color>, <Color>, ...])`
+///   `bottle_content!([<Color>, <Color>, ...])`
 ///
 /// - Defining water colors without square brackets:
-/// `bottle_content!(<Color>, <Color>, ...)`
+///   `bottle_content!(<Color>, <Color>, ...)`
 ///
 /// In each form, `<Color>` may be any variant of [ColoredWaterUnit], though
 /// you can (and in fact must) omit the `ColoredWaterUnit::` snippet.

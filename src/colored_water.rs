@@ -152,7 +152,7 @@ impl From<&ColoredWaterUnit> for crossterm::style::Color {
 
 impl From<ColoredWaterUnit> for crossterm::style::Color {
     fn from(value: ColoredWaterUnit) -> Self {
-        value.into()
+        (&value).into()
     }
 }
 

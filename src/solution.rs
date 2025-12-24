@@ -169,8 +169,8 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
         };
 
         //create workers
-        let chunked_gamestates = initial_gamestates_to_try
-            .chunks((state.gamestates_to_try.len() + (thread_count - 1)) / thread_count);
+        let chunked_gamestates =
+            initial_gamestates_to_try.chunks(state.gamestates_to_try.len().div_ceil(thread_count));
         let mut chunk_start_idx = 0;
         for gamestate_chunk in chunked_gamestates {
             let mut starting_state_chunk: Vec<SolutionState<BCOUNT, BSIZE>> = gamestate_chunk
