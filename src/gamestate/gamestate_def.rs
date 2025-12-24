@@ -5,7 +5,8 @@ use crossterm::{
     style::{ContentStyle, Print, PrintStyledContent, StyledContent},
     QueueableCommand
 };
-use heapless::Vec;
+use heapless::{CapacityError, Vec};
+use serde::{Deserialize, Serialize};
 use std::{
     hash::Hash,
     io,
@@ -17,7 +18,7 @@ use std::{
 /// The state a particular game is in
 ///
 /// That is, represents what bottles exist and what order they're in.
-#[derive(Debug, Clone, Eq)]
+#[derive(Debug, Clone, Eq, Deserialize, Serialize)]
 pub struct GameState<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> {
     pub bottles: Vec<Bottle<B_MAX_CAP>, MAX_BCOUNT>
 }
@@ -308,7 +309,7 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> Hash for GameState<MAX_BCO
 impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> TryFrom<&[Bottle<B_MAX_CAP>]>
     for GameState<MAX_BCOUNT, B_MAX_CAP>
 {
-    type Error = ();
+    type Error = CapacityError;
     /// This will only fail if the number of [Bottle]s in the provided `value` exceeds the desired `B_MAX_CAP`.
     fn try_from(value: &[Bottle<B_MAX_CAP>]) -> Result<Self, Self::Error> {
         Ok(GameState {

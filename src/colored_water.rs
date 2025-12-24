@@ -1,5 +1,6 @@
 //! Implementation for the colored water that goes into [Bottle](crate::bottle::Bottle)
 use crossterm::style::Color;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// A group of consecutive [ColoredWaterUnit]s that are all the same color
@@ -8,7 +9,7 @@ pub struct ColoredWaterRun {
     pub size: usize
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
 /// One unit of colored water, with a specific color
 pub enum ColoredWaterUnit {
     Red = 0,

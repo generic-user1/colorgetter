@@ -1,9 +1,9 @@
 //! Implementation of a bottle for colored water
 
-use std::cmp::Ordering;
-
 use crate::colored_water::{ColoredWaterRun, ColoredWaterUnit};
 use heapless::Vec;
+use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
 
 #[cfg(test)]
 mod bottle_tests;
@@ -18,7 +18,7 @@ mod bottle_tests;
 ///
 /// For performance reasons, Bottles must not require heap allocations. To this end, each bottle has a `MAX_CAP`; this is
 /// the maximum capacity that particular bottle can have. Their actual capacity can be any value at or below `MAX_CAP`.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
 pub struct Bottle<const MAX_CAP: usize> {
     capacity: usize,
     content: Vec<ColoredWaterUnit, MAX_CAP>
