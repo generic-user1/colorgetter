@@ -12,6 +12,7 @@ use core::ops::Drop;
 use crossterm::{
     cursor::{Hide, MoveTo, Show},
     event,
+    style::{Attributes, Color, ContentStyle},
     terminal::{
         disable_raw_mode, enable_raw_mode, Clear, ClearType, EnterAlternateScreen,
         LeaveAlternateScreen
@@ -23,8 +24,16 @@ use crate::{gamestate::GameState, solution::Solution};
 
 static UI_EXISTS: Mutex<bool> = Mutex::new(false);
 
+/// Style for a highlighted item; white background, black text, no underline, no attributes.
+const HIGHLIGHTED_STYLE: ContentStyle = ContentStyle {
+    background_color: Some(Color::White),
+    foreground_color: Some(Color::Black),
+    underline_color: None,
+    attributes: Attributes::none()
+};
+
 mod setup_menu;
-use setup_menu::MenuState;
+use setup_menu::SetupMenuState;
 
 mod solution_wait_screen;
 use solution_wait_screen::{GetSolutionError, WaitScreenState};
@@ -61,7 +70,7 @@ impl Ui {
     pub fn setup_menu_loop<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
         &self
     ) -> Result<GameState<MAX_BCOUNT, B_MAX_CAP>, UiRunError> {
-        let mut state = MenuState::new();
+        let mut state = SetupMenuState::new();
         loop {
             let mut out = stdout();
             out.queue(Clear(ClearType::All))?.queue(MoveTo(0, 0))?;
