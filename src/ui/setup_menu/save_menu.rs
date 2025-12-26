@@ -15,8 +15,8 @@ use std::{
 
 /// Runs a loop that displays the menu for saving a [GameState].
 /// Returns the file path saved to, or None if the menu was exited without saving.
-pub(super) fn save_menu_loop<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
-    gs: &GameState<MAX_BCOUNT, B_MAX_CAP>
+pub(super) fn save_menu_loop(
+    gs: &GameState
 ) -> Result<Option<Result<String, SaveError>>, UiRunError> {
     let mut state = SaveMenuState::new(gs);
     loop {
@@ -39,8 +39,8 @@ pub(super) fn save_menu_loop<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
 }
 
 /// Represents the state of the save menu
-pub(super) struct SaveMenuState<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize> {
-    pub gs: &'a GameState<MAX_BCOUNT, B_MAX_CAP>,
+pub(super) struct SaveMenuState<'a> {
+    pub gs: &'a GameState,
     filepath: Vec<char>,
     c_state: SaveCursorState
 }
@@ -55,8 +55,8 @@ enum SaveCursorState {
     Confirm
 }
 
-impl<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SaveMenuState<'a, MAX_BCOUNT, B_MAX_CAP> {
-    pub fn new(gs: &'a GameState<MAX_BCOUNT, B_MAX_CAP>) -> Self {
+impl<'a> SaveMenuState<'a> {
+    pub fn new(gs: &'a GameState) -> Self {
         const DEFAULT_PATH: &str = "./saved_gamestate.json";
         SaveMenuState {
             gs,

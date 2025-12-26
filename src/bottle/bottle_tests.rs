@@ -1,16 +1,15 @@
 use super::*;
 use crate::{bottle, bottle_content};
-use heapless::Vec;
 
 #[test]
 fn test_bottle_creation() {
-    let bottle1: Bottle<4> = Bottle::try_new(4).unwrap();
+    let bottle1: Bottle = Bottle::new(4);
 
     assert_eq!(bottle1.get_capacity(), 4);
-    assert_eq!(bottle1.get_content(), Vec::<ColoredWaterUnit, 4>::new());
+    assert_eq!(bottle1.get_content(), Vec::<ColoredWaterUnit>::new());
 
     let bottle2_base_content = [ColoredWaterUnit::Aqua, ColoredWaterUnit::Blue];
-    let bottle2: Bottle<4> = Bottle::try_with_content(&bottle2_base_content).unwrap();
+    let bottle2: Bottle = Bottle::with_content(&bottle2_base_content);
 
     assert_eq!(bottle2.get_capacity(), 2);
     assert_eq!(bottle2.get_content(), &bottle2_base_content);
@@ -19,50 +18,30 @@ fn test_bottle_creation() {
 #[test]
 fn test_bottle_resize() {
     let bottle_base_content = bottle_content!(Aqua, Blue, Brown, Blue);
-    let base_bottle: Bottle<8> = Bottle::try_with_content(&bottle_base_content).unwrap();
+    let base_bottle: Bottle = Bottle::with_content(&bottle_base_content);
 
     assert_eq!(base_bottle.get_capacity(), 4);
     assert_eq!(base_bottle.get_content(), &bottle_base_content);
 
-    let smaller_bottle: Bottle<4> = base_bottle.try_get_resized(3).unwrap();
+    let smaller_bottle: Bottle = base_bottle.get_resized(3);
 
     assert_eq!(smaller_bottle.get_capacity(), 3);
     assert_eq!(smaller_bottle.get_content(), &bottle_base_content[..3]);
 
-    let larger_bottle: Bottle<4> = smaller_bottle.try_get_resized(5).unwrap();
+    let larger_bottle: Bottle = smaller_bottle.get_resized(5);
     assert_eq!(larger_bottle.get_capacity(), 5);
     assert_eq!(larger_bottle.get_content(), &bottle_base_content[..3]);
 
     let mut in_place_resized_bottle = base_bottle.clone();
 
-    let resize_result = in_place_resized_bottle.resize_in_place(3);
-    assert!(resize_result.is_ok());
+    in_place_resized_bottle.resize_in_place(3);
     assert_eq!(in_place_resized_bottle.get_capacity(), 3);
     assert_eq!(
         in_place_resized_bottle.get_content(),
         &bottle_base_content[..3]
     );
 
-    // ensure we still succeed up to MAX_CAP of 8
-    let resize_result = in_place_resized_bottle.resize_in_place(8);
-    assert!(resize_result.is_ok());
-    assert_eq!(in_place_resized_bottle.get_capacity(), 8);
-    assert_eq!(
-        in_place_resized_bottle.get_content(),
-        &bottle_base_content[..3]
-    );
-
-    // ensure we fail beyond MAX_CAP of 8
-    let resize_result = in_place_resized_bottle.resize_in_place(9);
-    assert!(resize_result.is_err());
-    assert_eq!(in_place_resized_bottle.get_capacity(), 8);
-    assert_eq!(
-        in_place_resized_bottle.get_content(),
-        &bottle_base_content[..3]
-    );
-
-    let resize_result = in_place_resized_bottle.resize_in_place(5);
-    assert!(resize_result.is_ok());
+    in_place_resized_bottle.resize_in_place(5);
     assert_eq!(in_place_resized_bottle.get_capacity(), 5);
     assert_eq!(
         in_place_resized_bottle.get_content(),
@@ -71,14 +50,14 @@ fn test_bottle_resize() {
 
     let taken_resized_bottle1 = base_bottle.clone();
 
-    let taken_resized_bottle2 = taken_resized_bottle1.try_take_as_resized(3).unwrap();
+    let taken_resized_bottle2 = taken_resized_bottle1.take_as_resized(3);
     assert_eq!(taken_resized_bottle2.get_capacity(), 3);
     assert_eq!(
         taken_resized_bottle2.get_content(),
         &bottle_base_content[..3]
     );
 
-    let taken_resized_bottle3 = taken_resized_bottle2.try_take_as_resized(5).unwrap();
+    let taken_resized_bottle3 = taken_resized_bottle2.take_as_resized(5);
     assert_eq!(taken_resized_bottle3.get_capacity(), 5);
     assert_eq!(
         taken_resized_bottle3.get_content(),
@@ -88,7 +67,7 @@ fn test_bottle_resize() {
 
 #[test]
 fn test_bottle_pour_in() {
-    let mut bottle = bottle!([Red], 4, 4);
+    let mut bottle = bottle!([Red], 4);
 
     assert_eq!(bottle.get_content(), bottle_content!(Red));
 
@@ -139,9 +118,9 @@ fn test_bottle_pour_in() {
 
 #[test]
 fn test_bottle_pour_out() {
-    let mut source_bottle = bottle!([Green, Blue, Red, Red, Red], 5, 8);
+    let mut source_bottle = bottle!([Green, Blue, Red, Red, Red], 5);
 
-    let mut dest_bottle: Bottle<8> = Bottle::try_new(2).unwrap();
+    let mut dest_bottle: Bottle = Bottle::new(2);
 
     // Pour the top color run (2 reds) into destination, should be successful
     let test_pour_result = source_bottle.test_pour_out(&dest_bottle);
@@ -154,8 +133,8 @@ fn test_bottle_pour_out() {
     );
     assert_eq!(dest_bottle.get_content(), bottle_content!(Red, Red));
 
-    let mut source_bottle = bottle!([Green, Blue], 2, 4);
-    let mut dest_bottle = bottle!([Red], 4, 4);
+    let mut source_bottle = bottle!([Green, Blue], 2);
+    let mut dest_bottle = bottle!([Red], 4);
 
     // Attempt to pour the top color run (1 blue) into destination, should fail due to mismatched colors
     let test_pour_result = source_bottle.test_pour_out(&dest_bottle);
@@ -170,8 +149,8 @@ fn test_bottle_pour_out() {
     assert_eq!(source_bottle.get_content(), bottle_content!(Green, Blue));
     assert_eq!(dest_bottle.get_content(), bottle_content!(Red));
 
-    let mut source_bottle = bottle!([Red, Blue, Green], 3, 4);
-    let mut dest_bottle = bottle!([Green], 1, 4);
+    let mut source_bottle = bottle!([Red, Blue, Green], 3);
+    let mut dest_bottle = bottle!([Green], 1);
 
     // Attempt to pour the top color run (1 green) into destination, should fail due to no space
     let test_pour_result = source_bottle.test_pour_out(&dest_bottle);
@@ -187,8 +166,8 @@ fn test_bottle_pour_out() {
     );
     assert_eq!(dest_bottle.get_content(), &[ColoredWaterUnit::Green]);
 
-    let mut source_bottle: Bottle<4> = Bottle::try_new(4).unwrap();
-    let mut dest_bottle: Bottle<4> = Bottle::try_new(4).unwrap();
+    let mut source_bottle: Bottle = Bottle::new(4);
+    let mut dest_bottle: Bottle = Bottle::new(4);
 
     //Attempt to pour the top color run (nothing) into destination, should fail due to source bottle being empty
     let test_pour_result = source_bottle.test_pour_out(&dest_bottle);

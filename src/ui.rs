@@ -75,11 +75,11 @@ impl Ui {
     /// `game_state_file_path` is an optional path to a saved [GameState] file.
     /// If this is provided, the setup menu will initialize to the loaded [GameState];
     /// if not, the initial [GameState] will be empty.
-    pub fn setup_menu_loop<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
+    pub fn setup_menu_loop(
         &self,
         game_state_file_path: Option<&Path>
-    ) -> Result<GameState<MAX_BCOUNT, B_MAX_CAP>, UiRunError> {
-        let initial_game_state: Option<GameState<MAX_BCOUNT, B_MAX_CAP>> =
+    ) -> Result<GameState, UiRunError> {
+        let initial_game_state: Option<GameState> =
             if let Some(game_state_file_path) = game_state_file_path {
                 Some(load_gamestate_from_file(game_state_file_path)?)
             } else {
@@ -103,10 +103,10 @@ impl Ui {
     /// in the background.
     ///
     /// Returns an [`Option<Solution>`]; if [None], no solution could be found.
-    pub fn solution_finding_loop<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
+    pub fn solution_finding_loop<'a>(
         &self,
-        gamestate_to_solve: &'a GameState<MAX_BCOUNT, B_MAX_CAP>
-    ) -> Result<Option<Solution<'a, MAX_BCOUNT, B_MAX_CAP>>, UiRunError> {
+        gamestate_to_solve: &'a GameState
+    ) -> Result<Option<Solution<'a>>, UiRunError> {
         let mut state = WaitScreenState::new(gamestate_to_solve);
         let mut out = stdout();
         loop {
@@ -136,10 +136,7 @@ impl Ui {
     }
 
     /// Runs a loop that displays the viewer for a [Solution]
-    pub fn solution_viewer_loop<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
-        &self,
-        solution: &Solution<MAX_BCOUNT, B_MAX_CAP>
-    ) -> Result<(), UiRunError> {
+    pub fn solution_viewer_loop(&self, solution: &Solution) -> Result<(), UiRunError> {
         let mut state = SolutionViewerState::new(solution);
         loop {
             let mut out = stdout();

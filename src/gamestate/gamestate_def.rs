@@ -5,7 +5,6 @@ use crossterm::{
     style::{ContentStyle, Print, PrintStyledContent, StyledContent},
     QueueableCommand
 };
-use heapless::{CapacityError, Vec};
 use serde::{Deserialize, Serialize};
 use std::{
     hash::Hash,
@@ -19,11 +18,11 @@ use std::{
 ///
 /// That is, represents what bottles exist and what order they're in.
 #[derive(Debug, Clone, Eq, Deserialize, Serialize)]
-pub struct GameState<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> {
-    pub bottles: Vec<Bottle<B_MAX_CAP>, MAX_BCOUNT>
+pub struct GameState {
+    pub bottles: Vec<Bottle>
 }
 
-impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState<MAX_BCOUNT, B_MAX_CAP> {
+impl GameState {
     /// Queues the display of this entire GameState for the given `ostream` (typically [std::io::stdout])
     ///
     /// `selected`, if provided, specifies a [ColoredWaterUnit](crate::colored_water::ColoredWaterUnit) to display as being selected.
@@ -68,7 +67,7 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState<MAX_BCOUNT, B_MA
     /// If you want to queue this entire GameState for display, see [GameState::queue_display_full]
     pub fn queue_display_partial<
         T: QueueableCommand,
-        V: RangeBounds<usize> + SliceIndex<[Bottle<B_MAX_CAP>], Output = [Bottle<B_MAX_CAP>]> + Clone
+        V: RangeBounds<usize> + SliceIndex<[Bottle], Output = [Bottle]> + Clone
     >(
         &self,
         ostream: &mut T,
@@ -247,12 +246,12 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState<MAX_BCOUNT, B_MA
     }
 
     /// Returns an iterator over all [ValidPour](crate::gamestate::ValidPour)s you could apply to this GameState
-    pub fn iter_pours(&self) -> ValidPourIter<'_, MAX_BCOUNT, B_MAX_CAP> {
+    pub fn iter_pours(&self) -> ValidPourIter<'_> {
         ValidPourIter::new(self)
     }
 }
 
-impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> Ord for GameState<MAX_BCOUNT, B_MAX_CAP> {
+impl Ord for GameState {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         let mut our_std_order_bottles = self.bottles.clone();
         our_std_order_bottles.sort();
@@ -264,17 +263,13 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> Ord for GameState<MAX_BCOU
     }
 }
 
-impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> PartialOrd
-    for GameState<MAX_BCOUNT, B_MAX_CAP>
-{
+impl PartialOrd for GameState {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> PartialEq
-    for GameState<MAX_BCOUNT, B_MAX_CAP>
-{
+impl PartialEq for GameState {
     fn eq(&self, other: &Self) -> bool {
         if self.is_finished() != other.is_finished() {
             return false;
@@ -289,7 +284,7 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> PartialEq
         our_std_order_bottles == other_std_order_bottles
     }
 }
-impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> Hash for GameState<MAX_BCOUNT, B_MAX_CAP> {
+impl Hash for GameState {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         // Include whether we're finished
         self.is_finished().hash(state);
@@ -306,23 +301,18 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> Hash for GameState<MAX_BCO
     }
 }
 
-impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> TryFrom<&[Bottle<B_MAX_CAP>]>
-    for GameState<MAX_BCOUNT, B_MAX_CAP>
-{
-    type Error = CapacityError;
-    /// This will only fail if the number of [Bottle]s in the provided `value` exceeds the desired `B_MAX_CAP`.
-    fn try_from(value: &[Bottle<B_MAX_CAP>]) -> Result<Self, Self::Error> {
-        Ok(GameState {
-            bottles: Vec::from_slice(value)?
-        })
+impl From<&[Bottle]> for GameState {
+    fn from(value: &[Bottle]) -> Self {
+        GameState {
+            bottles: Vec::from(value)
+        }
     }
 }
-impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> From<[Bottle<B_MAX_CAP>; MAX_BCOUNT]>
-    for GameState<MAX_BCOUNT, B_MAX_CAP>
-{
-    fn from(value: [Bottle<B_MAX_CAP>; MAX_BCOUNT]) -> Self {
+
+impl<const BCOUNT: usize> From<[Bottle; BCOUNT]> for GameState {
+    fn from(value: [Bottle; BCOUNT]) -> Self {
         GameState {
-            bottles: Vec::from_slice(&value).unwrap()
+            bottles: Vec::from(&value)
         }
     }
 }

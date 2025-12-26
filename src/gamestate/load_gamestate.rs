@@ -4,9 +4,7 @@ use std::{fs, io, path::Path};
 
 use super::GameState;
 
-pub fn load_gamestate_from_file<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
-    file_path: &Path
-) -> Result<GameState<MAX_BCOUNT, B_MAX_CAP>, GameStateLoadError> {
+pub fn load_gamestate_from_file(file_path: &Path) -> Result<GameState, GameStateLoadError> {
     let file_content = fs::read(file_path)?;
     let gs = serde_json::from_slice(&file_content)?;
 

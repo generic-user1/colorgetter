@@ -18,21 +18,17 @@ use std::{
     time::{Duration, Instant}
 };
 
-pub(super) struct WaitScreenState<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize> {
+pub(super) struct WaitScreenState<'a> {
     search_start_time: Instant,
-    gamestate_to_solve: &'a GameState<MAX_BCOUNT, B_MAX_CAP>,
+    gamestate_to_solve: &'a GameState,
     solver_thread_handle: Option<JoinHandle<Option<VecDeque<Pour>>>>,
     pours: Option<VecDeque<Pour>>,
     search_end_time: Arc<RwLock<Option<Instant>>>,
     pub should_exit: bool
 }
 
-impl<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>
-    WaitScreenState<'a, MAX_BCOUNT, B_MAX_CAP>
-{
-    pub fn new(
-        gamestate_to_solve: &'a GameState<MAX_BCOUNT, B_MAX_CAP>
-    ) -> WaitScreenState<'a, MAX_BCOUNT, B_MAX_CAP> {
+impl<'a> WaitScreenState<'a> {
+    pub fn new(gamestate_to_solve: &'a GameState) -> WaitScreenState<'a> {
         let gs = gamestate_to_solve.clone();
         let search_start_time = Instant::now();
         let search_end_time = Arc::new(RwLock::new(None));
@@ -77,9 +73,7 @@ impl<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>
     /// Get the [Solution] found while waiting in the Wait Screen, if it exists.
     ///
     /// Will update internal state to set finish time and search result if this call determines that the search is newly finished.
-    pub fn get_solution(
-        &mut self
-    ) -> Result<Solution<'a, MAX_BCOUNT, B_MAX_CAP>, GetSolutionError> {
+    pub fn get_solution(&mut self) -> Result<Solution<'a>, GetSolutionError> {
         if !self.check_finished() {
             return Err(GetSolutionError::NotYetFinished);
         }

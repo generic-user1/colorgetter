@@ -10,15 +10,14 @@ use crossterm::{
     style::{ContentStyle, Print, PrintStyledContent, StyledContent},
     QueueableCommand
 };
-use heapless;
 use std::{
     io::{self, ErrorKind},
     num::NonZeroUsize
 };
 
 /// Represents the state of the setup menu
-pub(super) struct SetupMenuState<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> {
-    pub gs: GameState<MAX_BCOUNT, B_MAX_CAP>,
+pub(super) struct SetupMenuState {
+    pub gs: GameState,
     pub should_exit: bool,
     c_state: SetupCursorState,
     file_saved_path: Option<Result<String, SaveError>>
@@ -46,8 +45,8 @@ enum SetupCursorState {
     Save
 }
 
-impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT, B_MAX_CAP> {
-    pub fn new(initial_gamestate: Option<GameState<MAX_BCOUNT, B_MAX_CAP>>) -> Self {
+impl SetupMenuState {
+    pub fn new(initial_gamestate: Option<GameState>) -> Self {
         SetupMenuState {
             c_state: if initial_gamestate.is_none() {
                 SetupCursorState::Count
@@ -55,7 +54,7 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT,
                 SetupCursorState::Solve
             },
             gs: initial_gamestate.unwrap_or_else(|| GameState {
-                bottles: heapless::Vec::new()
+                bottles: Vec::new()
             }),
             should_exit: false,
             file_saved_path: None
@@ -174,7 +173,7 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT,
                         match self.c_state {
                             SetupCursorState::Count => {
                                 //add a bottle if there's room, do nothing if there isn't
-                                let _ = self.gs.bottles.push(Bottle::try_new(4).unwrap());
+                                self.gs.bottles.push(Bottle::new(4));
                             }
                             SetupCursorState::Capacity { b_idx } => {
                                 //increment selected bottle if right is pressed while editing capacity,
@@ -270,7 +269,7 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT,
                     match self.c_state {
                         SetupCursorState::Capacity { b_idx } => {
                             if let Some(bottle) = self.gs.bottles.get_mut(b_idx) {
-                                let _ = bottle.resize_in_place(bottle.get_capacity() + 1);
+                                bottle.resize_in_place(bottle.get_capacity() + 1);
                             }
                         }
                         SetupCursorState::Content { b_idx, c_idx } => {
@@ -302,8 +301,7 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT,
                                 //don't allow 0 capacity; a 0 capacity doesn't cause any serious problem but does look weird
                                 let new_capacity = bottle.get_capacity().saturating_sub(1);
                                 if new_capacity >= 1 {
-                                    let _ = bottle
-                                        .resize_in_place(bottle.get_capacity().saturating_sub(1));
+                                    bottle.resize_in_place(bottle.get_capacity().saturating_sub(1));
                                 }
                             }
                         }
