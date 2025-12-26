@@ -47,12 +47,16 @@ enum SetupCursorState {
 }
 
 impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT, B_MAX_CAP> {
-    pub fn new() -> Self {
+    pub fn new(initial_gamestate: Option<GameState<MAX_BCOUNT, B_MAX_CAP>>) -> Self {
         SetupMenuState {
-            gs: GameState {
-                bottles: heapless::Vec::new()
+            c_state: if initial_gamestate.is_none() {
+                SetupCursorState::Count
+            } else {
+                SetupCursorState::Solve
             },
-            c_state: SetupCursorState::Count,
+            gs: initial_gamestate.unwrap_or_else(|| GameState {
+                bottles: heapless::Vec::new()
+            }),
             should_exit: false,
             file_saved_path: None
         }

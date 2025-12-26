@@ -3,6 +3,7 @@
 use std::{
     io::{self, stdout, Write},
     marker::PhantomData,
+    path::Path,
     sync::Mutex,
     time::Duration
 };
@@ -20,7 +21,10 @@ use crossterm::{
     QueueableCommand
 };
 
-use crate::{gamestate::GameState, solution::Solution};
+use crate::{
+    gamestate::{load_gamestate_from_file, GameState, GameStateLoadError},
+    solution::Solution
+};
 
 static UI_EXISTS: Mutex<bool> = Mutex::new(false);
 
@@ -67,10 +71,22 @@ impl Ui {
     }
 
     /// Runs a loop that displays the menu for setting up a [GameState] to be solved.
+    ///
+    /// `game_state_file_path` is an optional path to a saved [GameState] file.
+    /// If this is provided, the setup menu will initialize to the loaded [GameState];
+    /// if not, the initial [GameState] will be empty.
     pub fn setup_menu_loop<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
-        &self
+        &self,
+        game_state_file_path: Option<&Path>
     ) -> Result<GameState<MAX_BCOUNT, B_MAX_CAP>, UiRunError> {
-        let mut state = SetupMenuState::new();
+        let initial_game_state: Option<GameState<MAX_BCOUNT, B_MAX_CAP>> =
+            if let Some(game_state_file_path) = game_state_file_path {
+                Some(load_gamestate_from_file(game_state_file_path)?)
+            } else {
+                None
+            };
+
+        let mut state = SetupMenuState::new(initial_game_state);
         loop {
             let mut out = stdout();
             out.queue(Clear(ClearType::All))?.queue(MoveTo(0, 0))?;
@@ -187,12 +203,21 @@ pub enum UiRunError {
     IOError(io::Error),
 
     /// The user requested to exit the program using CTRL + C or ESC
-    ExitRequest
+    ExitRequest,
+
+    /// An initial [GameState] file was provided, but couldn't be loaded
+    GameStateLoadError(GameStateLoadError)
 }
 
 impl From<io::Error> for UiRunError {
     fn from(value: io::Error) -> Self {
         UiRunError::IOError(value)
+    }
+}
+
+impl From<GameStateLoadError> for UiRunError {
+    fn from(value: GameStateLoadError) -> Self {
+        UiRunError::GameStateLoadError(value)
     }
 }
 

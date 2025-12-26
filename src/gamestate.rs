@@ -6,5 +6,8 @@ pub use gamestate_def::GameState;
 mod pour_def;
 pub use pour_def::{Pour, PourError, ValidPour, ValidPourIter};
 
+mod load_gamestate;
+pub use load_gamestate::{load_gamestate_from_file, GameStateLoadError};
+
 #[cfg(test)]
 mod pour_tests;

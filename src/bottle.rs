@@ -3,7 +3,10 @@
 use crate::colored_water::{ColoredWaterRun, ColoredWaterUnit};
 use heapless::Vec;
 use serde::{Deserialize, Serialize};
-use std::cmp::Ordering;
+use std::{
+    cmp::Ordering,
+    fmt::{Debug, Display}
+};
 
 #[cfg(test)]
 mod bottle_tests;
@@ -19,16 +22,51 @@ mod bottle_tests;
 /// For performance reasons, Bottles must not require heap allocations. To this end, each bottle has a `MAX_CAP`; this is
 /// the maximum capacity that particular bottle can have. Their actual capacity can be any value at or below `MAX_CAP`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
+#[serde(try_from = "UncheckedBottle<MAX_CAP>")]
 pub struct Bottle<const MAX_CAP: usize> {
     capacity: usize,
     content: Vec<ColoredWaterUnit, MAX_CAP>
+}
+
+/// A Bottle that is directly deserializable but has no guarantee that
+/// the capacity matches the content. Can be converted into a normal [Bottle]
+/// with the [TryFrom]/[TryInto] traits.
+#[derive(Deserialize)]
+struct UncheckedBottle<const MAX_CAP: usize> {
+    capacity: usize,
+    content: Vec<ColoredWaterUnit, MAX_CAP>
+}
+impl<const MAX_CAP: usize> TryFrom<UncheckedBottle<MAX_CAP>> for Bottle<MAX_CAP> {
+    type Error = BottleCapacityError;
+    fn try_from(value: UncheckedBottle<MAX_CAP>) -> Result<Self, Self::Error> {
+        if value.content.len() <= value.capacity {
+            Ok(Bottle {
+                capacity: value.capacity,
+                content: value.content
+            })
+        } else {
+            Err(BottleCapacityError::CapExceeded)
+        }
+    }
 }
 
 /// Reasons why creating or resizing a [Bottle] may fail
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum BottleCapacityError {
     /// The capacity requested is greater than the `MAX_CAP` of the Bottle
-    MaxCapExceeded
+    MaxCapExceeded,
+
+    /// The bottle is required to have more content than it has capacity; this only occurs
+    /// when deserializing a Bottle.
+    CapExceeded
+}
+impl Display for BottleCapacityError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BottleCapacityError::MaxCapExceeded => write!(f, "Bottle Maximum Capacity Exceeded"),
+            BottleCapacityError::CapExceeded => write!(f, "Bottle Capacity Exceeded")
+        }
+    }
 }
 
 impl<const MAX_CAP: usize> Bottle<MAX_CAP> {

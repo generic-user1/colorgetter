@@ -25,6 +25,27 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug w/saved state executable 'colorgetter'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=colorgetter",
+                    "--package=colorgetter"
+                ],
+                "filter": {
+                    "name": "colorgetter",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "-g",
+                "./saved_gamestate.json"
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug unit tests in executable 'colorgetter'",
             "cargo": {
                 "args": [
