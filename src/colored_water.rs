@@ -206,3 +206,69 @@ impl TryFrom<&[ColoredWaterUnit]> for ColoredWaterRun {
         }
     }
 }
+
+/// A [ColoredWaterUnit] that may be unknown, used with [PartialBottle](crate::bottle::PartialBottle)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PartialColoredWaterUnit {
+    /// This unit has a known color (includes the specific color)
+    Color(ColoredWaterUnit),
+    /// This unit has a color, but which color specifically is not known
+    UnknownColor
+}
+
+impl From<ColoredWaterUnit> for PartialColoredWaterUnit {
+    fn from(value: ColoredWaterUnit) -> Self {
+        PartialColoredWaterUnit::Color(value)
+    }
+}
+
+impl TryFrom<PartialColoredWaterUnit> for ColoredWaterUnit {
+    type Error = PartialColorConversionError;
+    fn try_from(value: PartialColoredWaterUnit) -> Result<Self, Self::Error> {
+        match value {
+            PartialColoredWaterUnit::Color(v) => Ok(v),
+            PartialColoredWaterUnit::UnknownColor => Err(PartialColorConversionError::UnknownColor)
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// A group of consecutive [PartialColoredWaterUnit]s that are all the same color
+/// or all unknown
+pub struct PartialColoredWaterRun {
+    pub color: PartialColoredWaterUnit,
+    pub size: usize
+}
+
+impl From<ColoredWaterRun> for PartialColoredWaterRun {
+    fn from(value: ColoredWaterRun) -> Self {
+        PartialColoredWaterRun {
+            color: PartialColoredWaterUnit::Color(value.color),
+            size: value.size
+        }
+    }
+}
+
+impl TryFrom<PartialColoredWaterRun> for ColoredWaterRun {
+    type Error = PartialColorConversionError;
+    fn try_from(value: PartialColoredWaterRun) -> Result<Self, Self::Error> {
+        match value {
+            PartialColoredWaterRun {
+                color: PartialColoredWaterUnit::Color(color),
+                size
+            } => Ok(ColoredWaterRun { color, size }),
+            PartialColoredWaterRun {
+                color: PartialColoredWaterUnit::UnknownColor,
+                ..
+            } => Err(PartialColorConversionError::UnknownColor)
+        }
+    }
+}
+
+/// Reasons converting from a [PartialColoredWaterUnit] to a [ColoredWaterUnit]
+/// or from a [PartialColoredWaterRun] to a [ColoredWaterRun] may fail
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PartialColorConversionError {
+    /// The [PartialColoredWaterUnit] is unknown
+    UnknownColor
+}

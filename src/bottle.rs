@@ -11,6 +11,9 @@ use std::{
 #[cfg(test)]
 mod bottle_tests;
 
+mod partial_bottle;
+pub use partial_bottle::{PartialBottle, PartialBottleConversionError, PartialColorSetError};
+
 /// One Bottle that may contain [ColoredWaterUnit]s
 ///
 /// Each bottle has a capacity, and some content. The capacity is the number of water units the bottle is allowed to hold,
@@ -50,14 +53,15 @@ impl<const MAX_CAP: usize> TryFrom<UncheckedBottle<MAX_CAP>> for Bottle<MAX_CAP>
     }
 }
 
-/// Reasons why creating or resizing a [Bottle] may fail
+/// All reasons why creating or resizing a [Bottle] or [PartialBottle] may fail
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum BottleCapacityError {
     /// The capacity requested is greater than the `MAX_CAP` of the Bottle
     MaxCapExceeded,
 
-    /// The bottle is required to have more content than it has capacity; this only occurs
-    /// when deserializing a Bottle.
+    /// The bottle is required to have more content than it has capacity. For [Bottle],
+    /// this can only occur when deserializing. For [PartialBottle], this may occur during
+    /// deserialization, but can also occur due to invalid combinations of `capacity` and `unknown_count`.
     CapExceeded
 }
 impl Display for BottleCapacityError {
@@ -69,28 +73,44 @@ impl Display for BottleCapacityError {
     }
 }
 
+/// Subset of [BottleCapacityError] including only errors that can occur
+/// during normal use of [Bottle] (i.e. excluding deserialization and [PartialBottle])
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum BottleMaxCapError {
+    /// The capacity requested is greater than the `MAX_CAP` of the Bottle
+    MaxCapExceeded
+}
+
+impl From<BottleMaxCapError> for BottleCapacityError {
+    fn from(value: BottleMaxCapError) -> Self {
+        match value {
+            BottleMaxCapError::MaxCapExceeded => BottleCapacityError::MaxCapExceeded
+        }
+    }
+}
+
 impl<const MAX_CAP: usize> Bottle<MAX_CAP> {
     /// Tries to create a new, empty Bottle
     ///
     /// This will fail if the given `capacity` is greater than `MAX_CAP`
-    pub const fn try_new(capacity: usize) -> Result<Self, BottleCapacityError> {
+    pub const fn try_new(capacity: usize) -> Result<Self, BottleMaxCapError> {
         if capacity <= MAX_CAP {
             Ok(Bottle {
                 capacity,
                 content: Vec::new()
             })
         } else {
-            Err(BottleCapacityError::MaxCapExceeded)
+            Err(BottleMaxCapError::MaxCapExceeded)
         }
     }
 
     /// Tries to create a new Bottle with the given content. Capacity is set to the number of elements in `content`.
     ///
     /// This will fail if the size of `content` is greater than `MAX_CAP`
-    pub fn try_with_content(content: &[ColoredWaterUnit]) -> Result<Self, BottleCapacityError> {
+    pub fn try_with_content(content: &[ColoredWaterUnit]) -> Result<Self, BottleMaxCapError> {
         Ok(Bottle {
             capacity: content.len(),
-            content: Vec::from_slice(content).map_err(|_| BottleCapacityError::MaxCapExceeded)?
+            content: Vec::from_slice(content).map_err(|_| BottleMaxCapError::MaxCapExceeded)?
         })
     }
 
@@ -160,9 +180,9 @@ impl<const MAX_CAP: usize> Bottle<MAX_CAP> {
     /// If `new_capacity` is smaller than current capacity, space (and any water in that space) will be removed from the 'top' of the Bottle.
     ///
     /// This will fail if `new_capacity` is greater than `MAX_CAP`
-    pub fn resize_in_place(&mut self, new_capacity: usize) -> Result<(), BottleCapacityError> {
+    pub fn resize_in_place(&mut self, new_capacity: usize) -> Result<(), BottleMaxCapError> {
         if new_capacity > MAX_CAP {
-            Err(BottleCapacityError::MaxCapExceeded)
+            Err(BottleMaxCapError::MaxCapExceeded)
         } else {
             self.capacity = new_capacity;
             if self.content.len() > self.capacity {
@@ -181,7 +201,7 @@ impl<const MAX_CAP: usize> Bottle<MAX_CAP> {
     pub fn try_get_resized<const NEW_MAX_CAP: usize>(
         &self,
         new_capacity: usize
-    ) -> Result<Bottle<NEW_MAX_CAP>, BottleCapacityError> {
+    ) -> Result<Bottle<NEW_MAX_CAP>, BottleMaxCapError> {
         // number of elements to copy is either the new capacity or the current length of our content (whichever is smaller)
         let len_to_copy = if new_capacity <= self.content.len() {
             new_capacity
@@ -194,7 +214,7 @@ impl<const MAX_CAP: usize> Bottle<MAX_CAP> {
         let mut new_content = Vec::new();
         new_content
             .extend_from_slice(content_to_copy)
-            .map_err(|_| BottleCapacityError::MaxCapExceeded)?;
+            .map_err(|_| BottleMaxCapError::MaxCapExceeded)?;
 
         Ok(Bottle {
             capacity: new_capacity,
@@ -211,9 +231,9 @@ impl<const MAX_CAP: usize> Bottle<MAX_CAP> {
     /// If you want to set a new `MAX_CAP`, see [Bottle::try_get_resized].
     ///
     /// This will fail if `new_capacity` is greater than `MAX_CAP`.
-    pub fn try_take_as_resized(self, new_capacity: usize) -> Result<Self, BottleCapacityError> {
+    pub fn try_take_as_resized(self, new_capacity: usize) -> Result<Self, BottleMaxCapError> {
         if new_capacity > MAX_CAP {
-            return Err(BottleCapacityError::MaxCapExceeded);
+            return Err(BottleMaxCapError::MaxCapExceeded);
         }
 
         // take our content as mutable
