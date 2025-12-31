@@ -79,27 +79,15 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState<MAX_BCOUNT, B_MA
         const FILLED: char = '█';
         const EMPTY: char = '░';
         const SELECTED: char = '▓';
-        const NOTHING: char = ' ';
         const FROM: char = 'F';
         const TO: char = 'T';
 
-        // Cursor movement doesn't appear to work right on Windows when terminal isn't in alternate screen
-        const USE_CURSOR: bool = true;
-
-        // Determine row count from max capacity of any bottle in this gamestate (true),
-        // or only consider bottles in this range (false)
-        const ROW_COUNT_FROM_GLOBAL_MAX: bool = false;
-
         //row count is height of highest considered bottle, plus 1 for indicators
-        let row_count = if ROW_COUNT_FROM_GLOBAL_MAX {
-            self.bottles.iter().map(|b| b.get_capacity()).max()
-        } else {
-            self.bottles[range.clone()]
-                .iter()
-                .map(|b| b.get_capacity())
-                .max()
-        }
-        .and_then(|x| x.checked_add(1));
+        let row_count = self.bottles[range.clone()]
+            .iter()
+            .map(|b| b.get_capacity())
+            .max()
+            .and_then(|x| x.checked_add(1));
 
         if let Some(row_count) = row_count {
             for row_index in (0..row_count).rev() {
@@ -135,17 +123,11 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState<MAX_BCOUNT, B_MA
                                     ostream.queue(Print(TO))?;
                                 } else {
                                     //this bottle isn't our source or dest!
-                                    if USE_CURSOR {
-                                        ostream.queue(MoveRight(1))?;
-                                    } else {
-                                        ostream.queue(Print(NOTHING))?;
-                                    }
+                                    ostream.queue(MoveRight(1))?;
                                 }
                             }
-                        } else if USE_CURSOR {
-                            ostream.queue(MoveRight(1))?;
                         } else {
-                            ostream.queue(Print(NOTHING))?;
+                            ostream.queue(MoveRight(1))?;
                         }
                     } else if let Some(color) = bottle.get_content().get(row_index) {
                         let styled_content = StyledContent::new(
@@ -161,21 +143,14 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState<MAX_BCOUNT, B_MA
                         ostream.queue(Print(if is_selected { SELECTED } else { EMPTY }))?;
                     }
                     // print an empty space between bottles
-                    if USE_CURSOR {
-                        ostream.queue(MoveRight(1))?;
-                    } else {
-                        ostream.queue(Print(NOTHING))?;
-                    }
+                    ostream.queue(MoveRight(1))?;
                 }
                 //move cursor to beginning of next row
-                if USE_CURSOR {
-                    ostream.queue(MoveLeft(
-                        (self.bottles.len() * 2).try_into().unwrap_or(65535)
-                    ))?;
-                    ostream.queue(MoveDown(1))?;
-                } else {
-                    ostream.queue(Print('\n'))?;
-                }
+
+                ostream.queue(MoveLeft(
+                    (self.bottles.len() * 2).try_into().unwrap_or(65535)
+                ))?;
+                ostream.queue(MoveDown(1))?;
             }
         }
 
