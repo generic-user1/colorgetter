@@ -1,5 +1,9 @@
 use super::{UiRunError, HIGHLIGHTED_STYLE};
-use crate::{bottle::Bottle, colored_water::ColoredWaterUnit, gamestate::GameState};
+use crate::{
+    bottle::Bottle,
+    colored_water::ColoredWaterUnit,
+    gamestate::{GameState, GameStateDisplay}
+};
 
 mod save_menu;
 use save_menu::{save_menu_loop, SaveError};

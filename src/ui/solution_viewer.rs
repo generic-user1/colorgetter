@@ -8,7 +8,7 @@ use std::{io, num::NonZeroUsize};
 
 use super::UiRunError;
 use crate::{
-    gamestate::{GameState, Pour},
+    gamestate::{GameState, GameStateDisplay, Pour},
     solution::Solution
 };
 

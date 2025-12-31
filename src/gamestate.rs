@@ -3,6 +3,9 @@
 mod gamestate_def;
 pub use gamestate_def::GameState;
 
+mod gamestate_display;
+pub use gamestate_display::GameStateDisplay;
+
 mod pour_def;
 pub use pour_def::{Pour, PourError, ValidPour, ValidPourIter};
 

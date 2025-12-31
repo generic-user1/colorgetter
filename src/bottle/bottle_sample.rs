@@ -76,14 +76,20 @@ impl From<ColoredWaterUnit> for BottleSampleResult {
 ///
 /// This currently only includes [Bottle] and [PartialBottle]
 pub trait BottleSample {
-    /// Sample the color in this bottle at the given index. If there is no color
-    /// at the given index, either because
+    /// Sample the color in this bottle at the given index.
     fn sample_at(&self, idx: usize) -> BottleSampleResult;
+
+    /// Return the capacity of this bottle
+    fn capacity(&self) -> usize;
 }
 
 impl<const MAX_CAP: usize> BottleSample for Bottle<MAX_CAP> {
+    fn capacity(&self) -> usize {
+        self.get_capacity()
+    }
+
     fn sample_at(&self, idx: usize) -> BottleSampleResult {
-        if idx > self.get_capacity() {
+        if idx > self.capacity() {
             BottleSampleResult::OutOfBounds
         } else {
             let sampled = self.get_content().get(idx);
@@ -97,8 +103,12 @@ impl<const MAX_CAP: usize> BottleSample for Bottle<MAX_CAP> {
 }
 
 impl<const MAX_CAP: usize> BottleSample for PartialBottle<MAX_CAP> {
+    fn capacity(&self) -> usize {
+        self.get_capacity()
+    }
+
     fn sample_at(&self, idx: usize) -> BottleSampleResult {
-        if idx > self.get_capacity() {
+        if idx > self.capacity() {
             BottleSampleResult::OutOfBounds
         } else if idx > self.get_unknown_count() {
             // adjust idx so that idx 0 points to first known color
