@@ -107,10 +107,12 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> From<[Bottle<B_MAX_CAP>; M
     }
 }
 
-impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> AsRef<[Bottle<B_MAX_CAP>]>
+impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameStateDisplay
     for GameState<MAX_BCOUNT, B_MAX_CAP>
 {
-    fn as_ref(&self) -> &[Bottle<B_MAX_CAP>] {
+    type BottleT = Bottle<B_MAX_CAP>;
+
+    fn get_bottles(&self) -> &[Self::BottleT] {
         &self.bottles
     }
 }

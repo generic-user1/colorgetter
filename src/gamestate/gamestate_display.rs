@@ -17,7 +17,12 @@ use std::{
 };
 
 /// Types representing game states that can be displayed
-pub trait GameStateDisplay<DispT: BottleSample>: AsRef<[DispT]> {
+pub trait GameStateDisplay {
+    type BottleT: BottleSample;
+
+    /// Gets the bottles of this game state as a slice
+    fn get_bottles(&self) -> &[Self::BottleT];
+
     /// Queues the display of this entire game state for the given `ostream` (typically [std::io::stdout])
     ///
     /// `selected`, if provided, specifies a [ColoredWaterUnit](crate::colored_water::ColoredWaterUnit) to display as being selected.
@@ -62,7 +67,7 @@ pub trait GameStateDisplay<DispT: BottleSample>: AsRef<[DispT]> {
     /// If you want to queue this entire game state for display, see [GameStateDisplay::queue_display_full]
     fn queue_display_partial<
         T: QueueableCommand,
-        V: RangeBounds<usize> + SliceIndex<[DispT], Output = [DispT]> + Clone
+        V: RangeBounds<usize> + SliceIndex<[Self::BottleT], Output = [Self::BottleT]> + Clone
     >(
         &self,
         ostream: &mut T,
@@ -78,7 +83,7 @@ pub trait GameStateDisplay<DispT: BottleSample>: AsRef<[DispT]> {
         const FROM: char = 'F';
         const TO: char = 'T';
 
-        let bottles = self.as_ref();
+        let bottles = self.get_bottles();
 
         //row count is height of highest considered bottle, plus 1 for indicators
         let row_count = bottles[range.clone()]
@@ -196,7 +201,7 @@ pub trait GameStateDisplay<DispT: BottleSample>: AsRef<[DispT]> {
         selected: Option<(usize, Option<usize>)>,
         pour: Option<&Pour>
     ) -> io::Result<()> {
-        let bottles = self.as_ref();
+        let bottles = self.get_bottles();
 
         let row_count = row_count.get();
         // if our row count is 1, just use the full display function as that'll do the job and we don't
@@ -225,5 +230,3 @@ pub trait GameStateDisplay<DispT: BottleSample>: AsRef<[DispT]> {
         Ok(())
     }
 }
-
-impl<T: AsRef<[U]>, U: BottleSample> GameStateDisplay<U> for T {}
