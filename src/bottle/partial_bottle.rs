@@ -104,7 +104,7 @@ impl<const MAX_CAP: usize> PartialBottle<MAX_CAP> {
     /// Note that the length of the return value may be less than the capacity of this PartialBottle,
     /// though it will never be greater - specifically, it must be somewhere between 0 and `capacity - unknown_count`
     /// units long.
-    pub fn get_content(&self) -> &[ColoredWaterUnit] {
+    pub const fn get_content(&self) -> &Vec<ColoredWaterUnit, MAX_CAP> {
         &self.content
     }
 

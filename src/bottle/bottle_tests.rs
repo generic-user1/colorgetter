@@ -7,7 +7,7 @@ fn test_bottle_creation() {
     let bottle1: Bottle<4> = Bottle::try_new(4).unwrap();
 
     assert_eq!(bottle1.get_capacity(), 4);
-    assert_eq!(bottle1.get_content(), Vec::<ColoredWaterUnit, 4>::new());
+    assert_eq!(*bottle1.get_content(), Vec::<ColoredWaterUnit, 4>::new());
 
     let bottle2_base_content = [ColoredWaterUnit::Aqua, ColoredWaterUnit::Blue];
     let bottle2: Bottle<4> = Bottle::try_with_content(&bottle2_base_content).unwrap();
@@ -90,7 +90,7 @@ fn test_bottle_resize() {
 fn test_bottle_pour_in() {
     let mut bottle = bottle!([Red], 4, 4);
 
-    assert_eq!(bottle.get_content(), bottle_content!(Red));
+    assert_eq!(*bottle.get_content(), bottle_content!(Red));
 
     // Pour one unit of Red, should be fully successful
     let content = bottle_content!(Red).try_into().unwrap();
@@ -104,7 +104,7 @@ fn test_bottle_pour_in() {
         })
     );
     assert_eq!(test_pour_result, try_pour_result);
-    assert_eq!(bottle.get_content(), bottle_content!(Red, Red));
+    assert_eq!(*bottle.get_content(), bottle_content!(Red, Red));
 
     // Pour in 1 unit of Aqua, should be unsuccessful due to mismatched colors
     let content = bottle_content!(Aqua).try_into().unwrap();
@@ -112,7 +112,7 @@ fn test_bottle_pour_in() {
     let try_pour_result = bottle.try_pour_in(content);
     assert_eq!(try_pour_result, Err(PourInError::MismatchedColors));
     assert_eq!(test_pour_result, try_pour_result);
-    assert_eq!(bottle.get_content(), bottle_content!(Red, Red));
+    assert_eq!(*bottle.get_content(), bottle_content!(Red, Red));
 
     // Pour in 4 units of Red, should be partially successful (2 poured in, 2 left over)
     let content = bottle_content!(Red, Red, Red, Red).try_into().unwrap();
@@ -126,7 +126,7 @@ fn test_bottle_pour_in() {
         })
     );
     assert_eq!(test_pour_result, try_pour_result);
-    assert_eq!(bottle.get_content(), bottle_content!(Red, Red, Red, Red));
+    assert_eq!(*bottle.get_content(), bottle_content!(Red, Red, Red, Red));
 
     // Pour in 1 unit of Red, should be unsuccessful due to bottle already being full
     let content = bottle_content!(Red).try_into().unwrap();
@@ -134,7 +134,7 @@ fn test_bottle_pour_in() {
     let try_pour_result = bottle.try_pour_in(content);
     assert_eq!(try_pour_result, Err(PourInError::AlreadyFull));
     assert_eq!(test_pour_result, try_pour_result);
-    assert_eq!(bottle.get_content(), bottle_content!(Red, Red, Red, Red));
+    assert_eq!(*bottle.get_content(), bottle_content!(Red, Red, Red, Red));
 }
 
 #[test]
@@ -149,10 +149,10 @@ fn test_bottle_pour_out() {
     assert_eq!(try_pour_result, Ok(()));
     assert_eq!(test_pour_result, try_pour_result);
     assert_eq!(
-        source_bottle.get_content(),
+        *source_bottle.get_content(),
         bottle_content!(Green, Blue, Red)
     );
-    assert_eq!(dest_bottle.get_content(), bottle_content!(Red, Red));
+    assert_eq!(*dest_bottle.get_content(), bottle_content!(Red, Red));
 
     let mut source_bottle = bottle!([Green, Blue], 2, 4);
     let mut dest_bottle = bottle!([Red], 4, 4);
@@ -167,8 +167,8 @@ fn test_bottle_pour_out() {
         ))
     );
     assert_eq!(test_pour_result, try_pour_result);
-    assert_eq!(source_bottle.get_content(), bottle_content!(Green, Blue));
-    assert_eq!(dest_bottle.get_content(), bottle_content!(Red));
+    assert_eq!(*source_bottle.get_content(), bottle_content!(Green, Blue));
+    assert_eq!(*dest_bottle.get_content(), bottle_content!(Red));
 
     let mut source_bottle = bottle!([Red, Blue, Green], 3, 4);
     let mut dest_bottle = bottle!([Green], 1, 4);
@@ -182,7 +182,7 @@ fn test_bottle_pour_out() {
     );
     assert_eq!(test_pour_result, try_pour_result);
     assert_eq!(
-        source_bottle.get_content(),
+        *source_bottle.get_content(),
         bottle_content!(Red, Blue, Green)
     );
     assert_eq!(dest_bottle.get_content(), &[ColoredWaterUnit::Green]);

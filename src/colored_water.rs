@@ -181,6 +181,13 @@ impl<const N: usize> TryFrom<&[ColoredWaterUnit; N]> for ColoredWaterRun {
     }
 }
 
+impl<const MAX_CAP: usize> TryFrom<&heapless::Vec<ColoredWaterUnit, MAX_CAP>> for ColoredWaterRun {
+    type Error = ColoredWaterRunError;
+    fn try_from(value: &heapless::Vec<ColoredWaterUnit, MAX_CAP>) -> Result<Self, Self::Error> {
+        ColoredWaterRun::try_from(value as &[ColoredWaterUnit])
+    }
+}
+
 impl TryFrom<&[ColoredWaterUnit]> for ColoredWaterRun {
     type Error = ColoredWaterRunError;
     fn try_from(value: &[ColoredWaterUnit]) -> Result<Self, Self::Error> {

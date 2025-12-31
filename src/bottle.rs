@@ -11,6 +11,9 @@ use std::{
 #[cfg(test)]
 mod bottle_tests;
 
+mod bottle_sample;
+pub use bottle_sample::{BottleSample, BottleSampleConversionError, BottleSampleResult};
+
 mod partial_bottle;
 pub use partial_bottle::{PartialBottle, PartialBottleConversionError, PartialColorSetError};
 
@@ -118,7 +121,7 @@ impl<const MAX_CAP: usize> Bottle<MAX_CAP> {
     ///
     /// Note that the length of the return value may be less than the capacity of this Bottle,
     /// though it will never be greater.
-    pub fn get_content(&self) -> &[ColoredWaterUnit] {
+    pub const fn get_content(&self) -> &Vec<ColoredWaterUnit, MAX_CAP> {
         &self.content
     }
 
@@ -512,7 +515,7 @@ impl From<PourInError> for PourOutError {
 /// // Bottle defined with content, explicit capacity, and explicit max capacity (allows us to forgo type hinting our variable)
 /// let sized_bottle1 = bottle!([Red, Green, Yellow], 4, 5);
 /// assert_eq!(
-///     sized_bottle1.get_content(),
+///     *sized_bottle1.get_content(),
 ///     [ColoredWaterUnit::Red, ColoredWaterUnit::Green, ColoredWaterUnit::Yellow]
 /// );
 ///
@@ -522,7 +525,7 @@ impl From<PourInError> for PourOutError {
 /// // Bottle defined with content and explicit capacity
 /// let sized_bottle2: Bottle<4> = bottle!([Red, Green, Yellow], 4);
 /// assert_eq!(
-///     sized_bottle2.get_content(),
+///     *sized_bottle2.get_content(),
 ///     [ColoredWaterUnit::Red, ColoredWaterUnit::Green, ColoredWaterUnit::Yellow]
 /// );
 /// assert_eq!(sized_bottle2.get_capacity(), 4);
@@ -530,7 +533,7 @@ impl From<PourInError> for PourOutError {
 /// // Bottle defined with content only
 /// let unsized_bottle1: Bottle<4> = bottle!([Red, Green, Yellow]);
 /// assert_eq!(
-///     unsized_bottle1.get_content(),
+///     *unsized_bottle1.get_content(),
 ///     [ColoredWaterUnit::Red, ColoredWaterUnit::Green, ColoredWaterUnit::Yellow]
 /// );
 /// assert_eq!(unsized_bottle1.get_capacity(), 3);
@@ -538,7 +541,7 @@ impl From<PourInError> for PourOutError {
 /// // Bottle defined with content only, omitting square brackets
 /// let unsized_bottle2: Bottle<4> = bottle!(Red, Green, Yellow);
 /// assert_eq!(
-///     unsized_bottle2.get_content(),
+///     *unsized_bottle2.get_content(),
 ///     [ColoredWaterUnit::Red, ColoredWaterUnit::Green, ColoredWaterUnit::Yellow]
 /// );
 /// assert_eq!(unsized_bottle2.get_capacity(), 3);
