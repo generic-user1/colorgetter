@@ -135,18 +135,21 @@ impl<const MAX_CAP: usize> PartialBottle<MAX_CAP> {
                 // is the topmost color (whether it's known or unknown), or when it's one unit above the topmost color
                 // (which is a no-op, but not an error)
                 if idx < self.unknown_count {
-                    // trying to set an unknown color to empty when there are unknowns above; not allowed
-                    Err(PartialColorSetError::FullAbove)
-                } else if idx == self.unknown_count {
-                    // trying to set the top unknown color to empty
-                    if self.content.is_empty() {
-                        // we have no known colors, so topmost unknown color is top color overall, and this is allowed.
-                        // just decrement unknown count by one
-                        self.unknown_count = self.unknown_count.saturating_sub(1);
-                        Ok(())
+                    //we're trying to set an unknown color - need to determine if it's the topmost or not
+                    if (idx + 1) == self.unknown_count {
+                        // trying to set the topmost unknown color to empty
+                        if self.content.is_empty() {
+                            // we have no known colors, so topmost unknown color is top color overall, and this is allowed.
+                            // just decrement unknown count by one
+                            self.unknown_count = self.unknown_count.saturating_sub(1);
+                            Ok(())
+                        } else {
+                            // we have at least one known color, so topmost unknown color is not top overall, and this
+                            // is not allowed
+                            Err(PartialColorSetError::FullAbove)
+                        }
                     } else {
-                        // we have at least one known color, so topmost unknown color is not top overall, and this
-                        // is not allowed
+                        // trying to set an unknown color to empty when there are unknowns above; not allowed
                         Err(PartialColorSetError::FullAbove)
                     }
                 } else {

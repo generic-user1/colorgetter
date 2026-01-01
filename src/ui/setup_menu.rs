@@ -1,8 +1,8 @@
 use super::{UiRunError, HIGHLIGHTED_STYLE};
 use crate::{
-    bottle::Bottle,
-    colored_water::ColoredWaterUnit,
-    gamestate::{GameState, GameStateDisplay}
+    bottle::{BottleSample, PartialBottle},
+    colored_water::PartialColoredWaterUnit,
+    gamestate::{GameStateDisplay, PartialGameState}
 };
 
 mod save_menu;
@@ -22,7 +22,7 @@ use std::{
 
 /// Represents the state of the setup menu
 pub(super) struct SetupMenuState<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> {
-    pub gs: GameState<MAX_BCOUNT, B_MAX_CAP>,
+    pub gs: PartialGameState<MAX_BCOUNT, B_MAX_CAP>,
     pub should_exit: bool,
     c_state: SetupCursorState,
     file_saved_path: Option<Result<String, SaveError>>
@@ -51,14 +51,14 @@ enum SetupCursorState {
 }
 
 impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT, B_MAX_CAP> {
-    pub fn new(initial_gamestate: Option<GameState<MAX_BCOUNT, B_MAX_CAP>>) -> Self {
+    pub fn new(initial_gamestate: Option<PartialGameState<MAX_BCOUNT, B_MAX_CAP>>) -> Self {
         SetupMenuState {
             c_state: if initial_gamestate.is_none() {
                 SetupCursorState::Count
             } else {
                 SetupCursorState::Solve
             },
-            gs: initial_gamestate.unwrap_or_else(|| GameState {
+            gs: initial_gamestate.unwrap_or_else(|| PartialGameState {
                 bottles: heapless::Vec::new()
             }),
             should_exit: false,
@@ -165,7 +165,9 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT,
                                 //we need to know two things: is there a 'next' bottle, and is our current c_idx in its bounds?
                                 let new_b_idx = b_idx + 1;
                                 if let Some(bottle) = self.gs.bottles.get(new_b_idx) {
-                                    let new_c_idx = c_idx.min(bottle.get_content().len());
+                                    let new_c_idx = c_idx.min(
+                                        bottle.get_top_content_idx().map(|i| i + 1).unwrap_or(0)
+                                    );
                                     self.c_state = SetupCursorState::Content {
                                         b_idx: new_b_idx,
                                         c_idx: new_c_idx
@@ -178,7 +180,7 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT,
                         match self.c_state {
                             SetupCursorState::Count => {
                                 //add a bottle if there's room, do nothing if there isn't
-                                let _ = self.gs.bottles.push(Bottle::try_new(4).unwrap());
+                                let _ = self.gs.bottles.push(PartialBottle::try_new(4, 0).unwrap());
                             }
                             SetupCursorState::Capacity { b_idx } => {
                                 //increment selected bottle if right is pressed while editing capacity,
@@ -192,11 +194,11 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT,
                                 //change color of selected unit
                                 if let Some(bottle) = self.gs.bottles.get_mut(b_idx) {
                                     let next_color = if let Some(current_color) =
-                                        bottle.get_content().get(c_idx)
+                                        bottle.sample_content_at(c_idx)
                                     {
                                         current_color.next()
                                     } else {
-                                        Some(ColoredWaterUnit::first())
+                                        Some(PartialColoredWaterUnit::first())
                                     };
                                     let _ = bottle.try_set_color(c_idx, next_color);
                                 }
@@ -224,7 +226,9 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT,
                             SetupCursorState::Content { b_idx, c_idx } => {
                                 let new_b_idx = b_idx.saturating_sub(1);
                                 if let Some(bottle) = self.gs.bottles.get(new_b_idx) {
-                                    let new_c_idx = c_idx.min(bottle.get_content().len());
+                                    let new_c_idx = c_idx.min(
+                                        bottle.get_top_content_idx().map(|i| i + 1).unwrap_or(0)
+                                    );
                                     self.c_state = SetupCursorState::Content {
                                         b_idx: new_b_idx,
                                         c_idx: new_c_idx
@@ -249,11 +253,11 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT,
                                 //change color of selected unit
                                 if let Some(bottle) = self.gs.bottles.get_mut(b_idx) {
                                     let prev_color = if let Some(current_color) =
-                                        bottle.get_content().get(c_idx)
+                                        bottle.sample_content_at(c_idx)
                                     {
                                         current_color.prev()
                                     } else {
-                                        Some(ColoredWaterUnit::last())
+                                        Some(PartialColoredWaterUnit::last())
                                     };
                                     let _ = bottle.try_set_color(c_idx, prev_color);
                                 }
@@ -283,7 +287,8 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT,
                             if let Some(bottle) = self.gs.bottles.get(b_idx) {
                                 let new_c_idx = c_idx + 1;
                                 if new_c_idx < bottle.get_capacity()
-                                    && c_idx < bottle.get_content().len()
+                                    && c_idx
+                                        < bottle.get_top_content_idx().map(|i| i + 1).unwrap_or(0)
                                 {
                                     self.c_state = SetupCursorState::Content {
                                         b_idx,

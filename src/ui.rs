@@ -22,7 +22,9 @@ use crossterm::{
 };
 
 use crate::{
-    gamestate::{load_gamestate_from_file, GameState, GameStateLoadError},
+    gamestate::{
+        load_partial_gamestate_from_file, GameState, GameStateLoadError, PartialGameState
+    },
     solution::Solution
 };
 
@@ -78,10 +80,10 @@ impl Ui {
     pub fn setup_menu_loop<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
         &self,
         game_state_file_path: Option<&Path>
-    ) -> Result<GameState<MAX_BCOUNT, B_MAX_CAP>, UiRunError> {
-        let initial_game_state: Option<GameState<MAX_BCOUNT, B_MAX_CAP>> =
+    ) -> Result<PartialGameState<MAX_BCOUNT, B_MAX_CAP>, UiRunError> {
+        let initial_game_state: Option<PartialGameState<MAX_BCOUNT, B_MAX_CAP>> =
             if let Some(game_state_file_path) = game_state_file_path {
-                Some(load_gamestate_from_file(game_state_file_path)?)
+                Some(load_partial_gamestate_from_file(game_state_file_path)?)
             } else {
                 None
             };
