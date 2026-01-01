@@ -35,6 +35,8 @@ pub struct PartialBottle<const MAX_CAP: usize> {
 struct UncheckedPartialBottle<const MAX_CAP: usize> {
     capacity: usize,
     content: Vec<ColoredWaterUnit, MAX_CAP>,
+
+    #[serde(default)]
     unknown_count: usize
 }
 impl<const MAX_CAP: usize> TryFrom<UncheckedPartialBottle<MAX_CAP>> for PartialBottle<MAX_CAP> {
@@ -99,12 +101,12 @@ impl<const MAX_CAP: usize> PartialBottle<MAX_CAP> {
         }
     }
 
-    /// Immutably borrow the content of this PartialBottle.
+    /// Immutably borrow the known content of this PartialBottle. Does not include unknown content.
     ///
     /// Note that the length of the return value may be less than the capacity of this PartialBottle,
     /// though it will never be greater - specifically, it must be somewhere between 0 and `capacity - unknown_count`
     /// units long.
-    pub const fn get_content(&self) -> &Vec<ColoredWaterUnit, MAX_CAP> {
+    pub const fn get_known_content(&self) -> &Vec<ColoredWaterUnit, MAX_CAP> {
         &self.content
     }
 

@@ -6,7 +6,7 @@ use crate::{
 };
 use crossterm::{
     cursor::{MoveDown, MoveLeft, MoveRight},
-    style::{ContentStyle, Print, PrintStyledContent, StyledContent},
+    style::{ContentStyle, Print, PrintStyledContent, StyledContent, Stylize},
     QueueableCommand
 };
 use std::{
@@ -78,8 +78,7 @@ pub trait GameStateDisplay {
         const FILLED: char = '█';
         const EMPTY: char = '░';
         const SELECTED: char = '▓';
-        const UNKNOWN: char = 'u';
-        const UNKNOWN_SELECTED: char = 'U';
+        const UNKNOWN: char = '?';
         const FROM: char = 'F';
         const TO: char = 'T';
 
@@ -145,11 +144,12 @@ pub trait GameStateDisplay {
                                 ostream.queue(PrintStyledContent(styled_content))?;
                             }
                             BottleSampleResult::UnknownColor => {
-                                ostream.queue(Print(if is_selected {
-                                    UNKNOWN_SELECTED
+                                if is_selected {
+                                    ostream
+                                        .queue(PrintStyledContent(UNKNOWN.black().on_white()))?;
                                 } else {
-                                    UNKNOWN
-                                }))?;
+                                    ostream.queue(Print(UNKNOWN))?;
+                                }
                             }
                             BottleSampleResult::Empty => {
                                 // bottle has capacity to reach here, but there's no content there

@@ -107,6 +107,21 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> From<[Bottle<B_MAX_CAP>; M
     }
 }
 
+impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> From<GameState<MAX_BCOUNT, B_MAX_CAP>>
+    for PartialGameState<MAX_BCOUNT, B_MAX_CAP>
+{
+    fn from(value: GameState<MAX_BCOUNT, B_MAX_CAP>) -> Self {
+        let mut converted_bottles = Vec::new();
+        for bottle in value.bottles {
+            converted_bottles.push(bottle.into()).unwrap();
+        }
+
+        PartialGameState {
+            bottles: converted_bottles
+        }
+    }
+}
+
 impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameStateDisplay
     for GameState<MAX_BCOUNT, B_MAX_CAP>
 {

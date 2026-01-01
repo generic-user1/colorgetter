@@ -1,5 +1,4 @@
 use super::{UiRunError, HIGHLIGHTED_STYLE};
-use crate::gamestate::GameState;
 use crossterm::{
     cursor::{MoveDown, MoveTo, MoveToColumn},
     event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
@@ -7,16 +6,19 @@ use crossterm::{
     terminal::{Clear, ClearType},
     QueueableCommand
 };
+use serde::Serialize;
 
 use std::{
     fs::File,
     io::{self, stdout, Write}
 };
 
-/// Runs a loop that displays the menu for saving a [GameState].
+/// Runs a loop that displays the menu for saving a [GameState](crate::gamestate::GameState) or [PartialGameState](crate::gamestate::PartialGameState).
+///
+/// Technically, can be used for saving anything that implements [Serialize], though it's specifically meant for (and used for) game states.
 /// Returns the file path saved to, or None if the menu was exited without saving.
-pub(super) fn save_menu_loop<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
-    gs: &GameState<MAX_BCOUNT, B_MAX_CAP>
+pub(super) fn save_menu_loop<T: Serialize>(
+    gs: &T
 ) -> Result<Option<Result<String, SaveError>>, UiRunError> {
     let mut state = SaveMenuState::new(gs);
     loop {
@@ -39,8 +41,8 @@ pub(super) fn save_menu_loop<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
 }
 
 /// Represents the state of the save menu
-pub(super) struct SaveMenuState<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize> {
-    pub gs: &'a GameState<MAX_BCOUNT, B_MAX_CAP>,
+pub(super) struct SaveMenuState<'a, T: Serialize> {
+    pub gs: &'a T,
     filepath: Vec<char>,
     c_state: SaveCursorState
 }
@@ -55,8 +57,8 @@ enum SaveCursorState {
     Confirm
 }
 
-impl<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SaveMenuState<'a, MAX_BCOUNT, B_MAX_CAP> {
-    pub fn new(gs: &'a GameState<MAX_BCOUNT, B_MAX_CAP>) -> Self {
+impl<'a, T: Serialize> SaveMenuState<'a, T> {
+    pub fn new(gs: &'a T) -> Self {
         const DEFAULT_PATH: &str = "./saved_gamestate.json";
         SaveMenuState {
             gs,
@@ -65,7 +67,7 @@ impl<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SaveMenuState<'a, MAX_
         }
     }
 
-    pub fn queue_display<T: QueueableCommand>(&self, ostream: &mut T) -> io::Result<()> {
+    pub fn queue_display<U: QueueableCommand>(&self, ostream: &mut U) -> io::Result<()> {
         ostream
             .queue(MoveDown(1))?
             .queue(MoveToColumn(0))?

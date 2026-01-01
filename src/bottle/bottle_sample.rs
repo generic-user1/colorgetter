@@ -81,6 +81,36 @@ pub trait BottleSample {
 
     /// Return the capacity of this bottle
     fn capacity(&self) -> usize;
+
+    /// Return the largest index in this bottle for which [BottleSample::sample_content_at]
+    /// returns [Some].
+    ///
+    /// A return value of [None] indicates that there is no content at all.
+    ///
+    /// **Note**: The provided default implementation of this is iterative; it will call
+    /// [BottleSample::sample_content_at] repeatedly, up to [BottleSample::capacity] times in the worst case.
+    /// You should consider implementing this manually for better performance.
+    fn get_top_content_idx(&self) -> Option<usize> {
+        for idx in (0..self.capacity()).rev() {
+            let sample_result = self.sample_content_at(idx);
+            if sample_result.is_some() {
+                return Some(idx);
+            }
+        }
+        None
+    }
+
+    /// Sample the color (known or unknown) in this bottle at the given index. If there is no color
+    /// at that index for any reason, return [None].
+    fn sample_content_at(&self, idx: usize) -> Option<PartialColoredWaterUnit> {
+        self.sample_at(idx).try_into().ok()
+    }
+
+    /// Sample the known color in this bottle at the given index. If there is no color at
+    /// that index for any reason, or if there is a color but it's unknown, return [None].
+    fn sample_known_color_at(&self, idx: usize) -> Option<ColoredWaterUnit> {
+        self.sample_at(idx).try_into().ok()
+    }
 }
 
 impl<const MAX_CAP: usize> BottleSample for Bottle<MAX_CAP> {
@@ -100,6 +130,12 @@ impl<const MAX_CAP: usize> BottleSample for Bottle<MAX_CAP> {
             }
         }
     }
+
+    fn get_top_content_idx(&self) -> Option<usize> {
+        //either we have content and the answer is one minus our length,
+        //or we don't have content and we want to return None
+        self.get_content().len().checked_sub(1)
+    }
 }
 
 impl<const MAX_CAP: usize> BottleSample for PartialBottle<MAX_CAP> {
@@ -110,10 +146,10 @@ impl<const MAX_CAP: usize> BottleSample for PartialBottle<MAX_CAP> {
     fn sample_at(&self, idx: usize) -> BottleSampleResult {
         if idx > self.capacity() {
             BottleSampleResult::OutOfBounds
-        } else if idx > self.get_unknown_count() {
+        } else if idx >= self.get_unknown_count() {
             // adjust idx so that idx 0 points to first known color
             let idx = idx - self.get_unknown_count();
-            let sampled = self.get_content().get(idx);
+            let sampled = self.get_known_content().get(idx);
             if let Some(&sampled) = sampled {
                 sampled.into()
             } else {
@@ -123,5 +159,12 @@ impl<const MAX_CAP: usize> BottleSample for PartialBottle<MAX_CAP> {
             // idx is inside our unknown count so it must point to unknown
             BottleSampleResult::UnknownColor
         }
+    }
+
+    fn get_top_content_idx(&self) -> Option<usize> {
+        //first, find our overall content length including both known and unknown
+        let overall_content_len = self.get_unknown_count() + self.get_known_content().len();
+        //then, our answer is our overall content length minus 1, or None if our overall length was zero.
+        overall_content_len.checked_sub(1)
     }
 }

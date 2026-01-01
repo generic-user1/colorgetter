@@ -223,6 +223,40 @@ pub enum PartialColoredWaterUnit {
     UnknownColor
 }
 
+impl PartialColoredWaterUnit {
+    /// Return the 'next' variant, or [None] if there is no next variant
+    pub fn next(&self) -> Option<PartialColoredWaterUnit> {
+        match self {
+            Self::Color(c) => {
+                if let Some(next_c) = c.next() {
+                    Some(Self::Color(next_c))
+                } else {
+                    Some(Self::UnknownColor)
+                }
+            }
+            Self::UnknownColor => None
+        }
+    }
+
+    /// Return the 'previous' variant, or [None] if there is no previous variant
+    pub fn prev(&self) -> Option<PartialColoredWaterUnit> {
+        match self {
+            Self::Color(color) => color.prev().map(Self::Color),
+            Self::UnknownColor => Some(Self::Color(ColoredWaterUnit::last()))
+        }
+    }
+
+    /// Return the 'first' variant
+    pub fn first() -> PartialColoredWaterUnit {
+        Self::Color(ColoredWaterUnit::first())
+    }
+
+    /// Return the 'last' variant
+    pub fn last() -> PartialColoredWaterUnit {
+        Self::UnknownColor
+    }
+}
+
 impl From<ColoredWaterUnit> for PartialColoredWaterUnit {
     fn from(value: ColoredWaterUnit) -> Self {
         PartialColoredWaterUnit::Color(value)
