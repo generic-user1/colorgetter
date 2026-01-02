@@ -1,7 +1,7 @@
 use super::{UiRunError, HIGHLIGHTED_STYLE};
 use crate::{
     bottle::{BottleSample, PartialBottle},
-    colored_water::PartialColoredWaterIter,
+    colored_water::{PartialColoredWaterIter, RevPartialColoredWaterIter},
     gamestate::{GameStateDisplay, PartialGameState}
 };
 
@@ -255,9 +255,9 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT,
                                 if let Some(bottle) = self.gs.bottles.get_mut(b_idx) {
                                     //iterate through PartialColoredWaterUnits backwards until we can successfully set a new color
                                     let mut color_iter =
-                                        PartialColoredWaterIter(bottle.sample_content_at(c_idx));
+                                        RevPartialColoredWaterIter(bottle.sample_content_at(c_idx));
                                     loop {
-                                        let color_to_use = color_iter.next_back();
+                                        let color_to_use = color_iter.next();
                                         if bottle.try_set_color(c_idx, color_to_use).is_ok() {
                                             break;
                                         }

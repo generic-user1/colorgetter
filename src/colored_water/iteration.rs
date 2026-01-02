@@ -19,8 +19,16 @@ impl Iterator for ColoredWaterIter {
     }
 }
 
-impl DoubleEndedIterator for ColoredWaterIter {
-    fn next_back(&mut self) -> Option<Self::Item> {
+/// Iterator over possible values of [ColoredWaterUnit] in the opposite direction to [ColoredWaterIter]
+///
+/// The only field tracks the color last-yielded by the iterator. It
+/// may be [None] - when it is, the next color to be yielded will be [ColoredWaterUnit::first].
+/// In other words, this iterator resumes iteration after it has ended.
+pub struct RevColoredWaterIter(pub Option<ColoredWaterUnit>);
+
+impl Iterator for RevColoredWaterIter {
+    type Item = ColoredWaterUnit;
+    fn next(&mut self) -> Option<Self::Item> {
         self.0 = if let Some(last_color) = self.0 {
             last_color.prev()
         } else {
@@ -49,8 +57,16 @@ impl Iterator for PartialColoredWaterIter {
     }
 }
 
-impl DoubleEndedIterator for PartialColoredWaterIter {
-    fn next_back(&mut self) -> Option<Self::Item> {
+/// Iterator over possible values of [PartialColoredWaterUnit] in the opposite direction to [PartialColoredWaterIter]
+///
+/// The only field tracks the color last-yielded by the iterator. It
+/// may be [None] - when it is, the next color to be yielded will be [PartialColoredWaterUnit::first].
+/// In other words, this iterator resumes iteration after it has ended.
+pub struct RevPartialColoredWaterIter(pub Option<PartialColoredWaterUnit>);
+
+impl Iterator for RevPartialColoredWaterIter {
+    type Item = PartialColoredWaterUnit;
+    fn next(&mut self) -> Option<Self::Item> {
         self.0 = if let Some(last_color) = self.0 {
             last_color.prev()
         } else {
