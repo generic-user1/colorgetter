@@ -11,8 +11,8 @@ use std::{
 #[cfg(test)]
 mod bottle_tests;
 
-mod bottle_sample;
-pub use bottle_sample::{BottleSample, BottleSampleConversionError, BottleSampleResult};
+mod bottle_trait;
+pub use bottle_trait::{Bottle, BottleSampleConversionError, BottleSampleResult};
 
 mod partial_bottle;
 pub use partial_bottle::{PartialBottle, PartialBottleConversionError, PartialColorSetError};

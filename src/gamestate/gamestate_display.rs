@@ -1,7 +1,7 @@
 //! Definition of the GameStateDisplay trait
 
 use crate::{
-    bottle::{BottleSample, BottleSampleResult},
+    bottle::{Bottle, BottleSampleResult},
     gamestate::Pour
 };
 use crossterm::{
@@ -18,7 +18,7 @@ use std::{
 
 /// Types representing game states that can be displayed
 pub trait GameStateDisplay {
-    type BottleT: BottleSample;
+    type BottleT: Bottle;
 
     /// Gets the bottles of this game state as a slice
     fn get_bottles(&self) -> &[Self::BottleT];

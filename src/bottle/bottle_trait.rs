@@ -1,9 +1,9 @@
-//! Definition of the BottleSample trait and implementations for [KnownBottle] and [PartialBottle]
+//! Definition of the Bottle trait and implementations for [KnownBottle] and [PartialBottle]
 
 use super::{KnownBottle, PartialBottle};
 use crate::colored_water::{ColoredWaterUnit, PartialColoredWaterUnit};
 
-/// The possible values that [BottleSample::sample_at] may return
+/// The possible values that [Bottle::sample_at] may return
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BottleSampleResult {
     /// There is a known color at the sampled location
@@ -72,23 +72,23 @@ impl From<ColoredWaterUnit> for BottleSampleResult {
     }
 }
 
-/// Types representing bottles that can be "sampled" for display purposes
+/// Types representing bottles of colored water.
 ///
-/// This currently only includes [KnownBottle] and [PartialBottle]
-pub trait BottleSample {
+/// This abstracts some of the behavior for [KnownBottle] and [PartialBottle]
+pub trait Bottle {
     /// Sample the color in this bottle at the given index.
     fn sample_at(&self, idx: usize) -> BottleSampleResult;
 
     /// Return the capacity of this bottle
     fn capacity(&self) -> usize;
 
-    /// Return the largest index in this bottle for which [BottleSample::sample_content_at]
+    /// Return the largest index in this bottle for which [Bottle::sample_content_at]
     /// returns [Some].
     ///
     /// A return value of [None] indicates that there is no content at all.
     ///
     /// **Note**: The provided default implementation of this is iterative; it will call
-    /// [BottleSample::sample_content_at] repeatedly, up to [BottleSample::capacity] times in the worst case.
+    /// [Bottle::sample_content_at] repeatedly, up to [Bottle::capacity] times in the worst case.
     /// You should consider implementing this manually for better performance.
     fn get_top_content_idx(&self) -> Option<usize> {
         for idx in (0..self.capacity()).rev() {
@@ -113,7 +113,7 @@ pub trait BottleSample {
     }
 }
 
-impl<const MAX_CAP: usize> BottleSample for KnownBottle<MAX_CAP> {
+impl<const MAX_CAP: usize> Bottle for KnownBottle<MAX_CAP> {
     fn capacity(&self) -> usize {
         self.get_capacity()
     }
@@ -138,7 +138,7 @@ impl<const MAX_CAP: usize> BottleSample for KnownBottle<MAX_CAP> {
     }
 }
 
-impl<const MAX_CAP: usize> BottleSample for PartialBottle<MAX_CAP> {
+impl<const MAX_CAP: usize> Bottle for PartialBottle<MAX_CAP> {
     fn capacity(&self) -> usize {
         self.get_capacity()
     }

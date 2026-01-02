@@ -1,6 +1,6 @@
 use super::{UiRunError, HIGHLIGHTED_STYLE};
 use crate::{
-    bottle::{BottleSample, PartialBottle},
+    bottle::{Bottle, PartialBottle},
     colored_water::{PartialColoredWaterIter, RevPartialColoredWaterIter},
     gamestate::{GameStateDisplay, PartialGameState}
 };
