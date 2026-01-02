@@ -51,6 +51,12 @@ impl From<PartialColoredWaterUnit> for BottleSampleResult {
     }
 }
 
+impl From<ColoredWaterUnit> for BottleSampleResult {
+    fn from(value: ColoredWaterUnit) -> Self {
+        BottleSampleResult::KnownColor(value)
+    }
+}
+
 /// Reasons converting a [BottleSampleResult] into a [ColoredWaterUnit] or [PartialColoredWaterUnit] may fail
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BottleSampleConversionError {
@@ -85,12 +91,6 @@ impl TryFrom<BottleSampleResult> for ColoredWaterUnit {
                 Err(BottleSampleConversionError::NoColor)
             }
         }
-    }
-}
-
-impl From<ColoredWaterUnit> for BottleSampleResult {
-    fn from(value: ColoredWaterUnit) -> Self {
-        BottleSampleResult::KnownColor(value)
     }
 }
 
