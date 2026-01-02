@@ -4,13 +4,13 @@ use heapless::Vec;
 
 #[test]
 fn test_bottle_creation() {
-    let bottle1: Bottle<4> = Bottle::try_new(4).unwrap();
+    let bottle1: KnownBottle<4> = KnownBottle::try_new(4).unwrap();
 
     assert_eq!(bottle1.get_capacity(), 4);
     assert_eq!(*bottle1.get_content(), Vec::<ColoredWaterUnit, 4>::new());
 
     let bottle2_base_content = [ColoredWaterUnit::Aqua, ColoredWaterUnit::Blue];
-    let bottle2: Bottle<4> = Bottle::try_with_content(&bottle2_base_content).unwrap();
+    let bottle2: KnownBottle<4> = KnownBottle::try_with_content(&bottle2_base_content).unwrap();
 
     assert_eq!(bottle2.get_capacity(), 2);
     assert_eq!(bottle2.get_content(), &bottle2_base_content);
@@ -19,17 +19,17 @@ fn test_bottle_creation() {
 #[test]
 fn test_bottle_resize() {
     let bottle_base_content = bottle_content!(Aqua, Blue, Brown, Blue);
-    let base_bottle: Bottle<8> = Bottle::try_with_content(&bottle_base_content).unwrap();
+    let base_bottle: KnownBottle<8> = KnownBottle::try_with_content(&bottle_base_content).unwrap();
 
     assert_eq!(base_bottle.get_capacity(), 4);
     assert_eq!(base_bottle.get_content(), &bottle_base_content);
 
-    let smaller_bottle: Bottle<4> = base_bottle.try_get_resized(3).unwrap();
+    let smaller_bottle: KnownBottle<4> = base_bottle.try_get_resized(3).unwrap();
 
     assert_eq!(smaller_bottle.get_capacity(), 3);
     assert_eq!(smaller_bottle.get_content(), &bottle_base_content[..3]);
 
-    let larger_bottle: Bottle<4> = smaller_bottle.try_get_resized(5).unwrap();
+    let larger_bottle: KnownBottle<4> = smaller_bottle.try_get_resized(5).unwrap();
     assert_eq!(larger_bottle.get_capacity(), 5);
     assert_eq!(larger_bottle.get_content(), &bottle_base_content[..3]);
 
@@ -141,7 +141,7 @@ fn test_bottle_pour_in() {
 fn test_bottle_pour_out() {
     let mut source_bottle = bottle!([Green, Blue, Red, Red, Red], 5, 8);
 
-    let mut dest_bottle: Bottle<8> = Bottle::try_new(2).unwrap();
+    let mut dest_bottle: KnownBottle<8> = KnownBottle::try_new(2).unwrap();
 
     // Pour the top color run (2 reds) into destination, should be successful
     let test_pour_result = source_bottle.test_pour_out(&dest_bottle);
@@ -187,8 +187,8 @@ fn test_bottle_pour_out() {
     );
     assert_eq!(dest_bottle.get_content(), &[ColoredWaterUnit::Green]);
 
-    let mut source_bottle: Bottle<4> = Bottle::try_new(4).unwrap();
-    let mut dest_bottle: Bottle<4> = Bottle::try_new(4).unwrap();
+    let mut source_bottle: KnownBottle<4> = KnownBottle::try_new(4).unwrap();
+    let mut dest_bottle: KnownBottle<4> = KnownBottle::try_new(4).unwrap();
 
     //Attempt to pour the top color run (nothing) into destination, should fail due to source bottle being empty
     let test_pour_result = source_bottle.test_pour_out(&dest_bottle);

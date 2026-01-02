@@ -1,25 +1,25 @@
 use std::fmt::Display;
 
 use super::*;
-use crate::bottle::{Bottle, PourOutError};
+use crate::bottle::{KnownBottle, PourOutError};
 
-/// The operation of pouring content from one [Bottle] into another within the same [GameState].
+/// The operation of pouring content from one [KnownBottle] into another within the same [KnownGameState].
 ///
 /// If a ValidPour exists, it is guaranteed to be valid; that is, [ValidPour::apply] can never fail.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ValidPour<'a, const BCOUNT: usize, const BSIZE: usize> {
-    /// the GameState this ValidPour applies to
-    source_gamestate: &'a GameState<BCOUNT, BSIZE>,
-    /// the source bottle's index within the GameState
+    /// the KnownGameState this ValidPour applies to
+    source_gamestate: &'a KnownGameState<BCOUNT, BSIZE>,
+    /// the source bottle's index within the KnownGameState
     source_bottle_index: usize,
-    /// the dest bottle's index within the GameState
+    /// the dest bottle's index within the KnownGameState
     dest_bottle_index: usize
 }
 
 impl<'a, const BCOUNT: usize, const BSIZE: usize> ValidPour<'a, BCOUNT, BSIZE> {
     /// Try to create a new [ValidPour]
     pub fn try_new(
-        source_gamestate: &'a GameState<BCOUNT, BSIZE>,
+        source_gamestate: &'a KnownGameState<BCOUNT, BSIZE>,
         source_bottle_index: usize,
         dest_bottle_index: usize
     ) -> Result<Self, PourError> {
@@ -50,8 +50,8 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> ValidPour<'a, BCOUNT, BSIZE> {
         })
     }
 
-    /// Create a new [GameState] that is the result of applying this ValidPour to the source [GameState]
-    pub fn apply(&self) -> GameState<BCOUNT, BSIZE> {
+    /// Create a new [KnownGameState] that is the result of applying this ValidPour to the source [KnownGameState]
+    pub fn apply(&self) -> KnownGameState<BCOUNT, BSIZE> {
         let mut new_game_state = self.source_gamestate.clone();
 
         let split_on_source = self.source_bottle_index < self.dest_bottle_index;
@@ -82,14 +82,14 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> ValidPour<'a, BCOUNT, BSIZE> {
         new_game_state
     }
 
-    pub fn get_source_gamestate(&self) -> &GameState<BCOUNT, BSIZE> {
+    pub fn get_source_gamestate(&self) -> &KnownGameState<BCOUNT, BSIZE> {
         self.source_gamestate
     }
 
     pub fn get_source_index(&self) -> usize {
         self.source_bottle_index
     }
-    pub fn get_source(&self) -> &Bottle<BSIZE> {
+    pub fn get_source(&self) -> &KnownBottle<BSIZE> {
         self.source_gamestate
             .bottles
             .get(self.source_bottle_index)
@@ -99,7 +99,7 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> ValidPour<'a, BCOUNT, BSIZE> {
     pub fn get_dest_index(&self) -> usize {
         self.dest_bottle_index
     }
-    pub fn get_dest(&self) -> &Bottle<BSIZE> {
+    pub fn get_dest(&self) -> &KnownBottle<BSIZE> {
         self.source_gamestate
             .bottles
             .get(self.dest_bottle_index)
@@ -116,7 +116,7 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Display for ValidPour<'a, BCOU
 /// Reasons creating a [ValidPour] or running [Pour::try_apply] may fail
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PourError {
-    /// A provided bottle index doesn't point to a [Bottle] within the given [GameState];
+    /// A provided bottle index doesn't point to a [KnownBottle] within the given [KnownGameState];
     /// may be the source, destination, or both.
     MissingBottle,
 
@@ -133,14 +133,14 @@ impl From<PourOutError> for PourError {
     }
 }
 
-/// An iterator over all valid [ValidPour]s you could apply to a given [GameState]
+/// An iterator over all valid [ValidPour]s you could apply to a given [KnownGameState]
 pub struct ValidPourIter<'a, const BCOUNT: usize, const BSIZE: usize> {
-    source_gamestate: &'a GameState<BCOUNT, BSIZE>,
+    source_gamestate: &'a KnownGameState<BCOUNT, BSIZE>,
     current_from_index: usize,
     current_to_index: usize
 }
 impl<'a, const BCOUNT: usize, const BSIZE: usize> ValidPourIter<'a, BCOUNT, BSIZE> {
-    pub fn new(source_gamestate: &'a GameState<BCOUNT, BSIZE>) -> Self {
+    pub fn new(source_gamestate: &'a KnownGameState<BCOUNT, BSIZE>) -> Self {
         Self {
             source_gamestate,
             current_from_index: 0,
@@ -169,25 +169,25 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Iterator for ValidPourIter<'a,
     }
 }
 
-/// The operation of pouring content from one [Bottle] into another within a hypothetical [GameState] that
+/// The operation of pouring content from one [KnownBottle] into another within a hypothetical [KnownGameState] that
 /// may or may not yet exist.
 ///
-/// Similar to [ValidPour], but does not hold a reference to a specific [GameState]. It is therefore not guaranteed to be valid,
-/// but can be created before the [GameState] it is meant to apply to exists.
+/// Similar to [ValidPour], but does not hold a reference to a specific [KnownGameState]. It is therefore not guaranteed to be valid,
+/// but can be created before the [KnownGameState] it is meant to apply to exists.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Pour {
-    /// The source bottle's index within a [GameState]
+    /// The source bottle's index within a [KnownGameState]
     pub source_bottle_index: usize,
-    /// The dest bottle's index within a [GameState]
+    /// The dest bottle's index within a [KnownGameState]
     pub dest_bottle_index: usize
 }
 impl Pour {
-    /// Attempt to create a [ValidPour] from this Pour in combination with a [GameState]
+    /// Attempt to create a [ValidPour] from this Pour in combination with a [KnownGameState]
     ///
     /// Similar to [ValidPour::try_new]
     pub fn try_into_valid<'a, const BCOUNT: usize, const BSIZE: usize>(
         &self,
-        source_gamestate: &'a GameState<BCOUNT, BSIZE>
+        source_gamestate: &'a KnownGameState<BCOUNT, BSIZE>
     ) -> Result<ValidPour<'a, BCOUNT, BSIZE>, PourError> {
         ValidPour::try_new(
             source_gamestate,
@@ -196,13 +196,13 @@ impl Pour {
         )
     }
 
-    /// Attempt to create a new [GameState] that is the result of applying this Pour to the given [GameState]
+    /// Attempt to create a new [KnownGameState] that is the result of applying this Pour to the given [KnownGameState]
     ///
     /// Similar to [ValidPour::apply]
     pub fn try_apply<const BCOUNT: usize, const BSIZE: usize>(
         &self,
-        source_gamestate: &GameState<BCOUNT, BSIZE>
-    ) -> Result<GameState<BCOUNT, BSIZE>, PourError> {
+        source_gamestate: &KnownGameState<BCOUNT, BSIZE>
+    ) -> Result<KnownGameState<BCOUNT, BSIZE>, PourError> {
         let valid_pour = self.try_into_valid(source_gamestate)?;
         Ok(valid_pour.apply())
     }

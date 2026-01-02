@@ -1,6 +1,6 @@
-//! Definition of the BottleSample trait and implementations for [Bottle] and [PartialBottle]
+//! Definition of the BottleSample trait and implementations for [KnownBottle] and [PartialBottle]
 
-use super::{Bottle, PartialBottle};
+use super::{KnownBottle, PartialBottle};
 use crate::colored_water::{ColoredWaterUnit, PartialColoredWaterUnit};
 
 /// The possible values that [BottleSample::sample_at] may return
@@ -74,7 +74,7 @@ impl From<ColoredWaterUnit> for BottleSampleResult {
 
 /// Types representing bottles that can be "sampled" for display purposes
 ///
-/// This currently only includes [Bottle] and [PartialBottle]
+/// This currently only includes [KnownBottle] and [PartialBottle]
 pub trait BottleSample {
     /// Sample the color in this bottle at the given index.
     fn sample_at(&self, idx: usize) -> BottleSampleResult;
@@ -113,7 +113,7 @@ pub trait BottleSample {
     }
 }
 
-impl<const MAX_CAP: usize> BottleSample for Bottle<MAX_CAP> {
+impl<const MAX_CAP: usize> BottleSample for KnownBottle<MAX_CAP> {
     fn capacity(&self) -> usize {
         self.get_capacity()
     }

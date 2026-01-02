@@ -1,5 +1,5 @@
 use crate::{
-    gamestate::{GameState, Pour},
+    gamestate::{KnownGameState, Pour},
     solution::Solution
 };
 
@@ -20,7 +20,7 @@ use std::{
 
 pub(super) struct WaitScreenState<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize> {
     search_start_time: Instant,
-    gamestate_to_solve: &'a GameState<MAX_BCOUNT, B_MAX_CAP>,
+    gamestate_to_solve: &'a KnownGameState<MAX_BCOUNT, B_MAX_CAP>,
     solver_thread_handle: Option<JoinHandle<Option<VecDeque<Pour>>>>,
     pours: Option<VecDeque<Pour>>,
     search_end_time: Arc<RwLock<Option<Instant>>>,
@@ -31,7 +31,7 @@ impl<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>
     WaitScreenState<'a, MAX_BCOUNT, B_MAX_CAP>
 {
     pub fn new(
-        gamestate_to_solve: &'a GameState<MAX_BCOUNT, B_MAX_CAP>
+        gamestate_to_solve: &'a KnownGameState<MAX_BCOUNT, B_MAX_CAP>
     ) -> WaitScreenState<'a, MAX_BCOUNT, B_MAX_CAP> {
         let gs = gamestate_to_solve.clone();
         let search_start_time = Instant::now();

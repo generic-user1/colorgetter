@@ -1,4 +1,4 @@
-//! Implementation for the colored water that goes into [Bottle](crate::bottle::Bottle)
+//! Implementation for the colored water that goes into [KnownBottle](crate::bottle::KnownBottle)
 use crossterm::style::Color;
 use serde::{Deserialize, Serialize};
 

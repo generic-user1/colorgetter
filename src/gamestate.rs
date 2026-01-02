@@ -1,7 +1,7 @@
 //! Implementation for the state of an entire game and operations that can be performed on it
 
 mod gamestate_def;
-pub use gamestate_def::GameState;
+pub use gamestate_def::KnownGameState;
 
 mod partial_gamestate;
 pub use partial_gamestate::PartialGameState;

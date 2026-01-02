@@ -1,4 +1,4 @@
-//! Implementation of a user interface for setting up [GameState]s
+//! Implementation of a user interface for setting up [KnownGameState]s/[PartialGameState]s
 
 use std::{
     io::{self, stdout, Write},
@@ -23,7 +23,7 @@ use crossterm::{
 
 use crate::{
     gamestate::{
-        load_partial_gamestate_from_file, GameState, GameStateLoadError, PartialGameState
+        load_partial_gamestate_from_file, GameStateLoadError, KnownGameState, PartialGameState
     },
     solution::Solution
 };
@@ -72,11 +72,11 @@ impl Ui {
         }
     }
 
-    /// Runs a loop that displays the menu for setting up a [GameState] to be solved.
+    /// Runs a loop that displays the menu for setting up a [PartialGameState] to be solved.
     ///
-    /// `game_state_file_path` is an optional path to a saved [GameState] file.
-    /// If this is provided, the setup menu will initialize to the loaded [GameState];
-    /// if not, the initial [GameState] will be empty.
+    /// `game_state_file_path` is an optional path to a saved [PartialGameState] file.
+    /// If this is provided, the setup menu will initialize to the loaded [PartialGameState];
+    /// if not, the initial [PartialGameState] will be empty.
     pub fn setup_menu_loop<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
         &self,
         game_state_file_path: Option<&Path>
@@ -101,13 +101,13 @@ impl Ui {
         }
     }
 
-    /// Runs a loop that handles display and input while the given [GameState] is solved
+    /// Runs a loop that handles display and input while the given [KnownGameState] is solved
     /// in the background.
     ///
     /// Returns an [`Option<Solution>`]; if [None], no solution could be found.
     pub fn solution_finding_loop<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
         &self,
-        gamestate_to_solve: &'a GameState<MAX_BCOUNT, B_MAX_CAP>
+        gamestate_to_solve: &'a KnownGameState<MAX_BCOUNT, B_MAX_CAP>
     ) -> Result<Option<Solution<'a, MAX_BCOUNT, B_MAX_CAP>>, UiRunError> {
         let mut state = WaitScreenState::new(gamestate_to_solve);
         let mut out = stdout();
@@ -207,7 +207,7 @@ pub enum UiRunError {
     /// The user requested to exit the program using CTRL + C or ESC
     ExitRequest,
 
-    /// An initial [GameState] file was provided, but couldn't be loaded
+    /// An initial [PartialGameState] file was provided, but couldn't be loaded
     GameStateLoadError(GameStateLoadError)
 }
 

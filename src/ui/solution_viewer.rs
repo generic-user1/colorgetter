@@ -8,7 +8,7 @@ use std::{io, num::NonZeroUsize};
 
 use super::UiRunError;
 use crate::{
-    gamestate::{GameState, GameStateDisplay, Pour},
+    gamestate::{KnownGameState, GameStateDisplay, Pour},
     solution::Solution
 };
 
@@ -107,7 +107,7 @@ impl<'a, 'b, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>
 
     /// Returns the currently displayed [GameState] and, if it exists, the [Pour] used to get to the
     /// current [GameState] from the previous one.
-    fn get_displayed_state_and_pour(&self) -> (GameState<MAX_BCOUNT, B_MAX_CAP>, Option<&Pour>) {
+    fn get_displayed_state_and_pour(&self) -> (KnownGameState<MAX_BCOUNT, B_MAX_CAP>, Option<&Pour>) {
         if let Some(display_pour_idx) = self.current_pour_idx {
             let mut working_gs = self.solution.get_base_gamestate().clone();
             for (current_pour_idx, current_pour) in self.solution.get_pours().iter().enumerate() {

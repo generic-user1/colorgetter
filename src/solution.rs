@@ -9,30 +9,30 @@ use std::{
 
 use bimap::BiHashMap;
 
-use crate::gamestate::{GameState, Pour, PourError};
+use crate::gamestate::{KnownGameState, Pour, PourError};
 
 type ThreadOutput = Arc<RwLock<Option<VecDeque<Pour>>>>;
 
 /// Represents the state of a solution finding algorithm
 struct SolutionState<const BCOUNT: usize, const BSIZE: usize> {
-    pub all_gamestates: BiHashMap<usize, GameState<BCOUNT, BSIZE>>,
+    pub all_gamestates: BiHashMap<usize, KnownGameState<BCOUNT, BSIZE>>,
     pub tried_gamestates: HashMap<usize, (usize, Pour)>,
     pub gamestates_to_try: VecDeque<(u8, usize)>
 }
 
-/// A series of [Pour]s that, when applied to some [GameState]
-/// in sequence, results in a GameState that is finished.
+/// A series of [Pour]s that, when applied to some [KnownGameState]
+/// in sequence, results in a KnownGameState that is finished.
 ///
 /// Although represented as Pours, each Pour is guaranteed
 /// to be valid for the result of the previous Pour (except the first Pour, which
 /// is instead guaranteed to be valid for the provided `base_gamestate`)
 pub struct Solution<'a, const BCOUNT: usize, const BSIZE: usize> {
-    base_gamestate: &'a GameState<BCOUNT, BSIZE>,
+    base_gamestate: &'a KnownGameState<BCOUNT, BSIZE>,
     pours: VecDeque<Pour>
 }
 
 impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
-    /// Try to find and return the shortest possible Solution to the given GameState. If no solution can be found, return `None`.
+    /// Try to find and return the shortest possible Solution to the given KnownGameState. If no solution can be found, return `None`.
     ///
     /// Will search for solutions with as many as `max_depth` pours. If no solution is found within that many pours, returns `None`.
     /// Setting `max_depth` to 0 disables the limit; will search for possible solutions that are arbitrarily long until a valid solution is found,
@@ -40,7 +40,10 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
     ///
     /// Will always return a Solution with the fewest possible pours and theoretically
     /// uses less memory than [Solution::try_new_threaded], but is usually slower.
-    pub fn try_new(base_gamestate: &'a GameState<BCOUNT, BSIZE>, max_depth: u8) -> Option<Self> {
+    pub fn try_new(
+        base_gamestate: &'a KnownGameState<BCOUNT, BSIZE>,
+        max_depth: u8
+    ) -> Option<Self> {
         let mut solution_state = Self::gen_initial_state(base_gamestate);
         let output = Arc::new(RwLock::new(None));
 
@@ -61,7 +64,7 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
             })
     }
 
-    /// Try to find and return a Solution to the given GameState. If no solution can be found, return `None`.
+    /// Try to find and return a Solution to the given KnownGameState. If no solution can be found, return `None`.
     ///
     /// Will search for solutions with as many as `max_depth` pours. If no solution is found within that many pours, returns `None`.
     /// Setting `max_depth` to 0 disables the limit; will search for possible solutions that are arbitrarily long until a valid solution is found,
@@ -70,7 +73,7 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
     /// Generally faster than [Solution::try_new], and will usually return a Solution that either is, or is close to, the shortest possible solution.
     /// However, that function typically uses less memory, and is guaranteed to return the shortest possible solution.
     pub fn try_new_threaded(
-        base_gamestate: &'a GameState<BCOUNT, BSIZE>,
+        base_gamestate: &'a KnownGameState<BCOUNT, BSIZE>,
         max_depth: u8
     ) -> Option<Self> {
         let solution_state = Self::gen_initial_state(base_gamestate);
@@ -80,9 +83,9 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
         })
     }
 
-    /// Try to create a [Solution] given a base [GameState] to solve and some iterable of [Pour]s to apply in order
+    /// Try to create a [Solution] given a base [KnownGameState] to solve and some iterable of [Pour]s to apply in order
     pub fn try_from_parts<T: IntoIterator<Item = Pour>>(
-        base_gamestate: &'a GameState<BCOUNT, BSIZE>,
+        base_gamestate: &'a KnownGameState<BCOUNT, BSIZE>,
         pours: T
     ) -> Result<Self, SolutionFromPartsError> {
         let mut working_gs = base_gamestate.clone();
@@ -287,7 +290,7 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
                 if layer_idx < max_depth || max_depth == 0 || !cutoff {
                     // the following could theoretically be done in one loop, but borrow rules prevent this.
                     // instead of just cloning, we first create a vector of all new entries that will go into all_gamestates
-                    let mut new_pours: Vec<(GameState<BCOUNT, BSIZE>, Pour)> = Vec::new();
+                    let mut new_pours: Vec<(KnownGameState<BCOUNT, BSIZE>, Pour)> = Vec::new();
                     for valid_pour in gamestate_to_try.iter_pours() {
                         let new_gs = valid_pour.apply();
                         // only check this gamestate if we haven't already checked it
@@ -326,13 +329,13 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
 
     /// Generates the initial state for a solution algorithm
     fn gen_initial_state(
-        gamestate_to_solve: &GameState<BCOUNT, BSIZE>
+        gamestate_to_solve: &KnownGameState<BCOUNT, BSIZE>
     ) -> SolutionState<BCOUNT, BSIZE> {
         // only generate GameStates once and reference them from here by index.
         // GameStateIdx is an alias to some type we can use to uniquely index into this HashMap;
         // We use an alias to make it more clear what we're doing
         type GameStateIdx = usize;
-        let mut all_gamestates: BiHashMap<GameStateIdx, GameState<BCOUNT, BSIZE>> =
+        let mut all_gamestates: BiHashMap<GameStateIdx, KnownGameState<BCOUNT, BSIZE>> =
             BiHashMap::new();
         all_gamestates.insert(0, gamestate_to_solve.clone()); // index is 0
 
@@ -349,7 +352,7 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> Solution<'a, BCOUNT, BSIZE> {
         }
     }
 
-    pub fn get_base_gamestate(&self) -> &GameState<BCOUNT, BSIZE> {
+    pub fn get_base_gamestate(&self) -> &KnownGameState<BCOUNT, BSIZE> {
         self.base_gamestate
     }
 
@@ -368,8 +371,8 @@ pub enum SolutionFromPartsError {
     /// Encountered a [PourError] while checking that [Pour]s are valid
     PourError(PourError),
 
-    /// The sequence of [Pour]s is valid for the given [GameState], but
-    /// does not result in a finished [GameState]
+    /// The sequence of [Pour]s is valid for the given [KnownGameState], but
+    /// does not result in a finished [KnownGameState]
     DoesNotFinish
 }
 

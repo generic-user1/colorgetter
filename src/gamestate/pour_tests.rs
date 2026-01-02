@@ -1,11 +1,11 @@
 use std::collections::HashSet;
 
 use super::*;
-use crate::{bottle, bottle::Bottle, colored_water::ColoredWaterUnit};
+use crate::{bottle, bottle::KnownBottle, colored_water::ColoredWaterUnit};
 
 #[test]
 fn test_valid_pour_iter() {
-    let first_gamestate: GameState<5, 4> = [
+    let first_gamestate: KnownGameState<5, 4> = [
         bottle!([Red, Red, Red], 4),
         bottle!([Orange, Green, Red], 4),
         bottle!([Yellow, Maroon], 3),

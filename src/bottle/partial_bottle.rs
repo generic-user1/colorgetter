@@ -5,7 +5,7 @@ use heapless::Vec;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
-use super::{Bottle, BottleCapacityError, BottleMaxCapError};
+use super::{BottleCapacityError, BottleMaxCapError, KnownBottle};
 
 /// One Bottle that may contain [ColoredWaterUnit]s, but where the specific color of some
 /// of the units is unknown.
@@ -432,8 +432,8 @@ pub enum PartialColorSetError {
     ExceedsCapacity
 }
 
-impl<const MAX_CAP: usize> From<Bottle<MAX_CAP>> for PartialBottle<MAX_CAP> {
-    fn from(value: Bottle<MAX_CAP>) -> Self {
+impl<const MAX_CAP: usize> From<KnownBottle<MAX_CAP>> for PartialBottle<MAX_CAP> {
+    fn from(value: KnownBottle<MAX_CAP>) -> Self {
         PartialBottle {
             capacity: value.capacity,
             content: value.content,
@@ -442,13 +442,13 @@ impl<const MAX_CAP: usize> From<Bottle<MAX_CAP>> for PartialBottle<MAX_CAP> {
     }
 }
 
-impl<const MAX_CAP: usize> TryFrom<PartialBottle<MAX_CAP>> for Bottle<MAX_CAP> {
+impl<const MAX_CAP: usize> TryFrom<PartialBottle<MAX_CAP>> for KnownBottle<MAX_CAP> {
     type Error = PartialBottleConversionError;
     fn try_from(value: PartialBottle<MAX_CAP>) -> Result<Self, Self::Error> {
         if value.get_unknown_count() > 0 {
             Err(PartialBottleConversionError::UnknownUnits)
         } else {
-            Ok(Bottle {
+            Ok(KnownBottle {
                 capacity: value.capacity,
                 content: value.content
             })
@@ -456,7 +456,7 @@ impl<const MAX_CAP: usize> TryFrom<PartialBottle<MAX_CAP>> for Bottle<MAX_CAP> {
     }
 }
 
-/// Reasons converting from a [PartialBottle] to a [Bottle] may fail
+/// Reasons converting from a [PartialBottle] to a [KnownBottle] may fail
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PartialBottleConversionError {
     /// The [PartialBottle] contains one or more units of unknown color

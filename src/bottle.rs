@@ -17,7 +17,7 @@ pub use bottle_sample::{BottleSample, BottleSampleConversionError, BottleSampleR
 mod partial_bottle;
 pub use partial_bottle::{PartialBottle, PartialBottleConversionError, PartialColorSetError};
 
-/// One Bottle that may contain [ColoredWaterUnit]s
+/// One Bottle that may contain [ColoredWaterUnit]s, all of which are known.
 ///
 /// Each bottle has a capacity, and some content. The capacity is the number of water units the bottle is allowed to hold,
 /// and the content is the different water units that the bottle is currently holding.
@@ -28,25 +28,25 @@ pub use partial_bottle::{PartialBottle, PartialBottleConversionError, PartialCol
 /// For performance reasons, Bottles must not require heap allocations. To this end, each bottle has a `MAX_CAP`; this is
 /// the maximum capacity that particular bottle can have. Their actual capacity can be any value at or below `MAX_CAP`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
-#[serde(try_from = "UncheckedBottle<MAX_CAP>")]
-pub struct Bottle<const MAX_CAP: usize> {
+#[serde(try_from = "UncheckedKnownBottle<MAX_CAP>")]
+pub struct KnownBottle<const MAX_CAP: usize> {
     capacity: usize,
     content: Vec<ColoredWaterUnit, MAX_CAP>
 }
 
-/// A Bottle that is directly deserializable but has no guarantee that
-/// the capacity matches the content. Can be converted into a normal [Bottle]
+/// A KnownBottle that is directly deserializable but has no guarantee that
+/// the capacity matches the content. Can be converted into a normal [KnownBottle]
 /// with the [TryFrom]/[TryInto] traits.
 #[derive(Deserialize)]
-struct UncheckedBottle<const MAX_CAP: usize> {
+struct UncheckedKnownBottle<const MAX_CAP: usize> {
     capacity: usize,
     content: Vec<ColoredWaterUnit, MAX_CAP>
 }
-impl<const MAX_CAP: usize> TryFrom<UncheckedBottle<MAX_CAP>> for Bottle<MAX_CAP> {
+impl<const MAX_CAP: usize> TryFrom<UncheckedKnownBottle<MAX_CAP>> for KnownBottle<MAX_CAP> {
     type Error = BottleCapacityError;
-    fn try_from(value: UncheckedBottle<MAX_CAP>) -> Result<Self, Self::Error> {
+    fn try_from(value: UncheckedKnownBottle<MAX_CAP>) -> Result<Self, Self::Error> {
         if value.content.len() <= value.capacity {
-            Ok(Bottle {
+            Ok(KnownBottle {
                 capacity: value.capacity,
                 content: value.content
             })
@@ -56,13 +56,13 @@ impl<const MAX_CAP: usize> TryFrom<UncheckedBottle<MAX_CAP>> for Bottle<MAX_CAP>
     }
 }
 
-/// All reasons why creating or resizing a [Bottle] or [PartialBottle] may fail
+/// All reasons why creating or resizing a [KnownBottle] or [PartialBottle] may fail
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum BottleCapacityError {
     /// The capacity requested is greater than the `MAX_CAP` of the Bottle
     MaxCapExceeded,
 
-    /// The bottle is required to have more content than it has capacity. For [Bottle],
+    /// The bottle is required to have more content than it has capacity. For [KnownBottle],
     /// this can only occur when deserializing. For [PartialBottle], this may occur during
     /// deserialization, but can also occur due to invalid combinations of `capacity` and `unknown_count`.
     CapExceeded
@@ -77,7 +77,7 @@ impl Display for BottleCapacityError {
 }
 
 /// Subset of [BottleCapacityError] including only errors that can occur
-/// during normal use of [Bottle] (i.e. excluding deserialization and [PartialBottle])
+/// during normal use of [KnownBottle] (i.e. excluding deserialization and [PartialBottle])
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum BottleMaxCapError {
     /// The capacity requested is greater than the `MAX_CAP` of the Bottle
@@ -92,13 +92,13 @@ impl From<BottleMaxCapError> for BottleCapacityError {
     }
 }
 
-impl<const MAX_CAP: usize> Bottle<MAX_CAP> {
-    /// Tries to create a new, empty Bottle
+impl<const MAX_CAP: usize> KnownBottle<MAX_CAP> {
+    /// Tries to create a new, empty KnownBottle
     ///
     /// This will fail if the given `capacity` is greater than `MAX_CAP`
     pub const fn try_new(capacity: usize) -> Result<Self, BottleMaxCapError> {
         if capacity <= MAX_CAP {
-            Ok(Bottle {
+            Ok(KnownBottle {
                 capacity,
                 content: Vec::new()
             })
@@ -107,17 +107,17 @@ impl<const MAX_CAP: usize> Bottle<MAX_CAP> {
         }
     }
 
-    /// Tries to create a new Bottle with the given content. Capacity is set to the number of elements in `content`.
+    /// Tries to create a new KnownBottle with the given content. Capacity is set to the number of elements in `content`.
     ///
     /// This will fail if the size of `content` is greater than `MAX_CAP`
     pub fn try_with_content(content: &[ColoredWaterUnit]) -> Result<Self, BottleMaxCapError> {
-        Ok(Bottle {
+        Ok(KnownBottle {
             capacity: content.len(),
             content: Vec::from_slice(content).map_err(|_| BottleMaxCapError::MaxCapExceeded)?
         })
     }
 
-    /// Immutably borrow the content of this Bottle.
+    /// Immutably borrow the content of this KnownBottle.
     ///
     /// Note that the length of the return value may be less than the capacity of this Bottle,
     /// though it will never be greater.
@@ -167,20 +167,20 @@ impl<const MAX_CAP: usize> Bottle<MAX_CAP> {
         }
     }
 
-    /// Return the capacity of this Bottle.
+    /// Return the capacity of this KnownBottle.
     pub const fn get_capacity(&self) -> usize {
         self.capacity
     }
 
-    /// Return the maximum capacity of this Bottle
+    /// Return the maximum capacity of this KnownBottle
     pub const fn get_max_capacity(&self) -> usize {
         MAX_CAP
     }
 
-    /// Sets a new capacity for this Bottle.
+    /// Sets a new capacity for this KnownBottle.
     ///
-    /// If `new_capacity` is larger than current capacity, empty space will be added to the 'top' of the Bottle.
-    /// If `new_capacity` is smaller than current capacity, space (and any water in that space) will be removed from the 'top' of the Bottle.
+    /// If `new_capacity` is larger than current capacity, empty space will be added to the 'top' of the KnownBottle.
+    /// If `new_capacity` is smaller than current capacity, space (and any water in that space) will be removed from the 'top' of the KnownBottle.
     ///
     /// This will fail if `new_capacity` is greater than `MAX_CAP`
     pub fn resize_in_place(&mut self, new_capacity: usize) -> Result<(), BottleMaxCapError> {
@@ -195,16 +195,16 @@ impl<const MAX_CAP: usize> Bottle<MAX_CAP> {
         }
     }
 
-    /// Creates a new Bottle with the same content as this Bottle, but a different capacity.
+    /// Creates a new KnownBottle with the same content as this KnownBottle, but a different capacity.
     ///
-    /// If `new_capacity` is larger than current capacity, empty space will be added to the 'top' of the new Bottle.
-    /// If `new_capacity` is smaller than current capacity, space (and any water in that space) will be removed from the 'top' of the new Bottle.
+    /// If `new_capacity` is larger than current capacity, empty space will be added to the 'top' of the new KnownBottle.
+    /// If `new_capacity` is smaller than current capacity, space (and any water in that space) will be removed from the 'top' of the new KnownBottle.
     ///
     /// This will fail if `new_capacity` is greater than `NEW_MAX_CAP`
     pub fn try_get_resized<const NEW_MAX_CAP: usize>(
         &self,
         new_capacity: usize
-    ) -> Result<Bottle<NEW_MAX_CAP>, BottleMaxCapError> {
+    ) -> Result<KnownBottle<NEW_MAX_CAP>, BottleMaxCapError> {
         // number of elements to copy is either the new capacity or the current length of our content (whichever is smaller)
         let len_to_copy = if new_capacity <= self.content.len() {
             new_capacity
@@ -219,19 +219,19 @@ impl<const MAX_CAP: usize> Bottle<MAX_CAP> {
             .extend_from_slice(content_to_copy)
             .map_err(|_| BottleMaxCapError::MaxCapExceeded)?;
 
-        Ok(Bottle {
+        Ok(KnownBottle {
             capacity: new_capacity,
             content: new_content
         })
     }
 
-    /// Creates a new Bottle with the same content as this Bottle, but a different capacity. Avoids
-    /// copying Bottle content by consuming (taking) this Bottle. Useful for method chaining.
+    /// Creates a new KnownBottle with the same content as this KnownBottle, but a different capacity. Avoids
+    /// copying KnownBottle content by consuming (taking) this KnownBottle. Useful for method chaining.
     ///
-    /// If `new_capacity` is larger than current capacity, empty space will be added to the 'top' of the new Bottle.
-    /// If `new_capacity` is smaller than current capacity, space (and any water in that space) will be removed from the 'top' of the new Bottle.
+    /// If `new_capacity` is larger than current capacity, empty space will be added to the 'top' of the new KnownBottle.
+    /// If `new_capacity` is smaller than current capacity, space (and any water in that space) will be removed from the 'top' of the new KnownBottle.
     ///
-    /// If you want to set a new `MAX_CAP`, see [Bottle::try_get_resized].
+    /// If you want to set a new `MAX_CAP`, see [KnownBottle::try_get_resized].
     ///
     /// This will fail if `new_capacity` is greater than `MAX_CAP`.
     pub fn try_take_as_resized(self, new_capacity: usize) -> Result<Self, BottleMaxCapError> {
@@ -246,7 +246,7 @@ impl<const MAX_CAP: usize> Bottle<MAX_CAP> {
             new_content.truncate(new_capacity);
         }
 
-        Ok(Bottle {
+        Ok(KnownBottle {
             capacity: new_capacity,
             content: new_content
         })
@@ -281,14 +281,14 @@ impl<const MAX_CAP: usize> Bottle<MAX_CAP> {
         }
     }
 
-    /// Attempt to pour a [ColoredWaterRun] into this Bottle.
+    /// Attempt to pour a [ColoredWaterRun] into this bottle.
     ///
     /// If this is successful, will return a new [ColoredWaterRun] representing the portion of
-    /// the given `content_to_pour` that wouldn't fit into this Bottle. The `size` of this returned [ColoredWaterRun]
-    /// may be 0; this indicates that the entirity of `content_to_pour` fit into this Bottle.
+    /// the given `content_to_pour` that wouldn't fit into this bottle. The `size` of this returned [ColoredWaterRun]
+    /// may be 0; this indicates that the entirity of `content_to_pour` fit into this bottle.
     ///
-    /// If this is unsuccessful (i.e., none of the `content_to_pour` could fit into this Bottle/the colors are mismatched),
-    /// an [Err] is returned with an appropriate [PourInError] variant. No change is made to this Bottle in this case.
+    /// If this is unsuccessful (i.e., none of the `content_to_pour` could fit into this bottle/the colors are mismatched),
+    /// an [Err] is returned with an appropriate [PourInError] variant. No change is made to this bottle in this case.
     pub fn try_pour_in(
         &mut self,
         content_to_pour: ColoredWaterRun
@@ -321,10 +321,10 @@ impl<const MAX_CAP: usize> Bottle<MAX_CAP> {
         }
     }
 
-    /// Determine if running [Bottle::try_pour_in] would succeed given the current content of this bottle
+    /// Determine if running [KnownBottle::try_pour_in] would succeed given the current content of this bottle
     /// and the provided `content_to_pour`, but don't actually modify the content of this bottle.
     ///
-    /// Return value is the same as the return value of [Bottle::try_pour_in] would be if called on this same
+    /// Return value is the same as the return value of [KnownBottle::try_pour_in] would be if called on this same
     /// bottle with the same `content_to_pour`
     pub fn test_pour_in(
         &self,
@@ -349,16 +349,16 @@ impl<const MAX_CAP: usize> Bottle<MAX_CAP> {
         })
     }
 
-    /// Attempt to pour a [ColoredWaterRun] out of this Bottle.
+    /// Attempt to pour a [ColoredWaterRun] out of this bottle.
     ///
     /// If this is successful, will return `Ok(())`.
     ///
     /// If this is unsuccessful (i.e., this bottle is empty/the destination bottle couldn't accept the pour),
-    /// an [Err] is returned with an appropriate [PourOutError] variant. No change is made to either this Bottle
-    /// or the destination Bottle in this case.
+    /// an [Err] is returned with an appropriate [PourOutError] variant. No change is made to either this bottle
+    /// or the destination bottle in this case.
     pub fn try_pour_out<const OTHER_MAX_CAP: usize>(
         &mut self,
-        destination: &mut Bottle<OTHER_MAX_CAP>
+        destination: &mut KnownBottle<OTHER_MAX_CAP>
     ) -> Result<(), PourOutError> {
         if let Some(run_to_pour) = self.get_top_color_run() {
             let remaining_part_of_run = destination.try_pour_in(run_to_pour)?;
@@ -375,14 +375,14 @@ impl<const MAX_CAP: usize> Bottle<MAX_CAP> {
         }
     }
 
-    /// Determine if running [Bottle::try_pour_out] would succeed given the current content of this bottle
-    /// and the provided `destination` Bottle, but don't actually modify the content of either bottle.
+    /// Determine if running [KnownBottle::try_pour_out] would succeed given the current content of this bottle
+    /// and the provided `destination` bottle, but don't actually modify the content of either bottle.
     ///
-    /// Return value is the same as the return value of [Bottle::try_pour_out] would be if called on this same
-    /// bottle with the same `destination` Bottle.
+    /// Return value is the same as the return value of [KnownBottle::try_pour_out] would be if called on this same
+    /// bottle with the same `destination` bottle.
     pub fn test_pour_out<const OTHER_MAX_CAP: usize>(
         &self,
-        destination: &Bottle<OTHER_MAX_CAP>
+        destination: &KnownBottle<OTHER_MAX_CAP>
     ) -> Result<(), PourOutError> {
         if let Some(run_to_pour) = self.get_top_color_run() {
             match destination.test_pour_in(run_to_pour) {
@@ -394,13 +394,13 @@ impl<const MAX_CAP: usize> Bottle<MAX_CAP> {
         }
     }
 
-    /// Determine if this Bottle is in its final state
+    /// Determine if this KnownBottle is in its final state
     ///
     /// "Final state" in this context means the bottle is in its final possible state:
     /// entirely full of a single color.
     ///
     /// Note: entirely empty bottles are not considered in their final state by this function; although
-    /// they can be a part of a finished [GameState](crate::gamestate::GameState), they
+    /// they can be a part of a finished [KnownGameState](crate::gamestate::KnownGameState), they
     /// can also still be poured into (and therefore, are not definitively in their final state).
     pub fn is_in_final_state(&self) -> bool {
         ColoredWaterRun::try_from(self.get_content()).is_ok_and(|run| run.size == self.capacity)
@@ -408,7 +408,7 @@ impl<const MAX_CAP: usize> Bottle<MAX_CAP> {
 }
 
 // We need to implement Ord on bottles so that we can sort them into some standardized order.
-impl<const MAX_CAP: usize> Ord for Bottle<MAX_CAP> {
+impl<const MAX_CAP: usize> Ord for KnownBottle<MAX_CAP> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         // bottle A is less than another bottle B when
         // any of the following is true:
@@ -440,13 +440,13 @@ impl<const MAX_CAP: usize> Ord for Bottle<MAX_CAP> {
     }
 }
 
-impl<const MAX_CAP: usize> PartialOrd for Bottle<MAX_CAP> {
+impl<const MAX_CAP: usize> PartialOrd for KnownBottle<MAX_CAP> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-///Reasons that setting a [ColoredWaterUnit] within a [Bottle] may fail.
+///Reasons that setting a [ColoredWaterUnit] within a [KnownBottle] may fail.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ColorSetError {
     /// Attempted to set a color at a location that has empty space below it
@@ -455,27 +455,27 @@ pub enum ColorSetError {
     /// Attempted to set a color to empty at a location that has non-empty space above it
     FullAbove,
 
-    /// Attempted to set a color to a location beyond the capacity of the destination [Bottle]
+    /// Attempted to set a color to a location beyond the capacity of the destination [KnownBottle]
     ExceedsCapacity
 }
 
-///Reasons that pouring a [ColoredWaterRun] into a [Bottle] may fail.
+///Reasons that pouring a [ColoredWaterRun] into a [KnownBottle] may fail.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PourInError {
-    /// The destination [Bottle] is full and cannot accept any part of the [ColoredWaterRun]
+    /// The destination [KnownBottle] is full and cannot accept any part of the [ColoredWaterRun]
     AlreadyFull,
 
-    /// The destination [Bottle] has a top color that does not match the color of the [ColoredWaterRun]
+    /// The destination [KnownBottle] has a top color that does not match the color of the [ColoredWaterRun]
     MismatchedColors
 }
 
-///Reasons that pouring a [ColoredWaterRun] out of a [Bottle] may fail.
+///Reasons that pouring a [ColoredWaterRun] out of a [KnownBottle] may fail.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PourOutError {
-    /// The source [Bottle] is entirely empty and has no content to pour
+    /// The source [KnownBottle] is entirely empty and has no content to pour
     Empty,
 
-    /// The destination [Bottle] could not accept the content to pour
+    /// The destination [KnownBottle] could not accept the content to pour
     DestinationError(PourInError)
 }
 
@@ -485,7 +485,7 @@ impl From<PourInError> for PourOutError {
     }
 }
 
-/// Create a bottle with some content and an optional size
+/// Create a KnownBottle with some content and an optional size
 ///
 /// There are four forms:
 ///
@@ -509,7 +509,7 @@ impl From<PourInError> for PourOutError {
 /// Examples:
 /// ```
 /// use colorgetter::bottle;
-/// use colorgetter::bottle::Bottle;
+/// use colorgetter::bottle::KnownBottle;
 /// use colorgetter::colored_water::ColoredWaterUnit;
 ///
 /// // Bottle defined with content, explicit capacity, and explicit max capacity (allows us to forgo type hinting our variable)
@@ -523,7 +523,7 @@ impl From<PourInError> for PourOutError {
 /// assert_eq!(sized_bottle1.get_max_capacity(), 5);
 ///
 /// // Bottle defined with content and explicit capacity
-/// let sized_bottle2: Bottle<4> = bottle!([Red, Green, Yellow], 4);
+/// let sized_bottle2: KnownBottle<4> = bottle!([Red, Green, Yellow], 4);
 /// assert_eq!(
 ///     *sized_bottle2.get_content(),
 ///     [ColoredWaterUnit::Red, ColoredWaterUnit::Green, ColoredWaterUnit::Yellow]
@@ -531,7 +531,7 @@ impl From<PourInError> for PourOutError {
 /// assert_eq!(sized_bottle2.get_capacity(), 4);
 ///
 /// // Bottle defined with content only
-/// let unsized_bottle1: Bottle<4> = bottle!([Red, Green, Yellow]);
+/// let unsized_bottle1: KnownBottle<4> = bottle!([Red, Green, Yellow]);
 /// assert_eq!(
 ///     *unsized_bottle1.get_content(),
 ///     [ColoredWaterUnit::Red, ColoredWaterUnit::Green, ColoredWaterUnit::Yellow]
@@ -539,7 +539,7 @@ impl From<PourInError> for PourOutError {
 /// assert_eq!(unsized_bottle1.get_capacity(), 3);
 ///
 /// // Bottle defined with content only, omitting square brackets
-/// let unsized_bottle2: Bottle<4> = bottle!(Red, Green, Yellow);
+/// let unsized_bottle2: KnownBottle<4> = bottle!(Red, Green, Yellow);
 /// assert_eq!(
 ///     *unsized_bottle2.get_content(),
 ///     [ColoredWaterUnit::Red, ColoredWaterUnit::Green, ColoredWaterUnit::Yellow]
@@ -549,13 +549,13 @@ impl From<PourInError> for PourOutError {
 #[macro_export]
 macro_rules! bottle {
     ([$($color:ident),*], $capacity:expr, $max_capacity:expr) => {
-        Bottle::<$max_capacity>::try_with_content(&[$(ColoredWaterUnit::$color),*]).unwrap().try_take_as_resized($capacity).unwrap()
+        KnownBottle::<$max_capacity>::try_with_content(&[$(ColoredWaterUnit::$color),*]).unwrap().try_take_as_resized($capacity).unwrap()
     };
     ([$($color:ident),*], $capacity:expr) => {
-        Bottle::try_with_content(&[$(ColoredWaterUnit::$color),*]).unwrap().try_take_as_resized($capacity).unwrap()
+        KnownBottle::try_with_content(&[$(ColoredWaterUnit::$color),*]).unwrap().try_take_as_resized($capacity).unwrap()
     };
     ([$($color:ident),+]) => {
-        Bottle::try_with_content(&[$(ColoredWaterUnit::$color),+]).unwrap()
+        KnownBottle::try_with_content(&[$(ColoredWaterUnit::$color),+]).unwrap()
     };
     ($($color:ident),+) => {
         bottle!([$($color),+])
@@ -563,7 +563,7 @@ macro_rules! bottle {
 }
 
 /// Create an array of [ColoredWaterUnit]s in a more compact form;
-/// useful for quickly defining the content of a Bottle.
+/// useful for quickly defining the content of a KnownBottle.
 ///
 /// To match [bottle!], comes in 2 forms:
 ///
