@@ -1,5 +1,6 @@
 //! Definition of the Bottle trait
 
+use super::BottleMaxCapError;
 use crate::colored_water::{ColoredWaterUnit, PartialColoredWaterUnit};
 
 ///Reasons that setting a [PartialColoredWaterUnit](crate::colored_water::PartialColoredWaterUnit) within a [Bottle] may fail.
@@ -114,6 +115,14 @@ pub trait Bottle {
         idx: usize,
         new_color: Option<PartialColoredWaterUnit>
     ) -> Result<(), ColorSetError>;
+
+    /// Sets a new capacity for this Bottle.
+    ///
+    /// If `new_capacity` is larger than current capacity, empty space will be added to the 'top' of the Bottle.
+    /// If `new_capacity` is smaller than current capacity, space (and any content in that space) will be removed from the 'top' of the Bottle.
+    ///
+    /// This will fail if `new_capacity` is greater than `MAX_CAP`
+    fn resize_in_place(&mut self, new_capacity: usize) -> Result<(), BottleMaxCapError>;
 
     /// Sample the color in this bottle at the given index.
     fn sample_at(&self, idx: usize) -> BottleSampleResult;

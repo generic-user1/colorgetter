@@ -122,33 +122,6 @@ impl<const MAX_CAP: usize> PartialBottle<MAX_CAP> {
         self.unknown_count
     }
 
-    /// Sets a new capacity for this PartialBottle.
-    ///
-    /// If `new_capacity` is larger than current capacity, empty space will be added to the 'top' of the PartialBottle.
-    /// If `new_capacity` is smaller than current capacity, space (and any water in that space, known or unknown)
-    /// will be removed from the 'top' of the PartialBottle.
-    ///
-    /// This will fail if `new_capacity` is greater than `MAX_CAP`
-    pub fn resize_in_place(&mut self, new_capacity: usize) -> Result<(), BottleMaxCapError> {
-        if new_capacity > MAX_CAP {
-            Err(BottleMaxCapError::MaxCapExceeded)
-        } else {
-            let capacity_for_known = new_capacity.saturating_sub(self.unknown_count);
-
-            if self.content.len() > capacity_for_known {
-                self.content.truncate(capacity_for_known);
-            }
-
-            // if we have more unknown units than capacity total,
-            // set unknown count to capacity (as the known units would already have
-            // been removed above)
-            self.unknown_count = self.unknown_count.min(new_capacity);
-
-            self.capacity = new_capacity;
-            Ok(())
-        }
-    }
-
     /// Creates a new PartialBottle with the same content as this PartialBottle, but a different capacity.
     ///
     /// If `new_capacity` is larger than current capacity, empty space will be added to the 'top' of the new PartialBottle.
@@ -394,6 +367,26 @@ impl<const MAX_CAP: usize> Bottle for PartialBottle<MAX_CAP> {
                     }
                 }
             }
+        }
+    }
+
+    fn resize_in_place(&mut self, new_capacity: usize) -> Result<(), BottleMaxCapError> {
+        if new_capacity > MAX_CAP {
+            Err(BottleMaxCapError::MaxCapExceeded)
+        } else {
+            let capacity_for_known = new_capacity.saturating_sub(self.unknown_count);
+
+            if self.content.len() > capacity_for_known {
+                self.content.truncate(capacity_for_known);
+            }
+
+            // if we have more unknown units than capacity total,
+            // set unknown count to capacity (as the known units would already have
+            // been removed above)
+            self.unknown_count = self.unknown_count.min(new_capacity);
+
+            self.capacity = new_capacity;
+            Ok(())
         }
     }
 

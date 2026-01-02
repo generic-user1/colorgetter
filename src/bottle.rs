@@ -130,24 +130,6 @@ impl<const MAX_CAP: usize> KnownBottle<MAX_CAP> {
         MAX_CAP
     }
 
-    /// Sets a new capacity for this KnownBottle.
-    ///
-    /// If `new_capacity` is larger than current capacity, empty space will be added to the 'top' of the KnownBottle.
-    /// If `new_capacity` is smaller than current capacity, space (and any water in that space) will be removed from the 'top' of the KnownBottle.
-    ///
-    /// This will fail if `new_capacity` is greater than `MAX_CAP`
-    pub fn resize_in_place(&mut self, new_capacity: usize) -> Result<(), BottleMaxCapError> {
-        if new_capacity > MAX_CAP {
-            Err(BottleMaxCapError::MaxCapExceeded)
-        } else {
-            self.capacity = new_capacity;
-            if self.content.len() > self.capacity {
-                self.content.truncate(self.capacity);
-            }
-            Ok(())
-        }
-    }
-
     /// Creates a new KnownBottle with the same content as this KnownBottle, but a different capacity.
     ///
     /// If `new_capacity` is larger than current capacity, empty space will be added to the 'top' of the new KnownBottle.
@@ -410,6 +392,18 @@ impl<const MAX_CAP: usize> Bottle for KnownBottle<MAX_CAP> {
             } else {
                 Err(ColorSetError::FullAbove)
             }
+        }
+    }
+
+    fn resize_in_place(&mut self, new_capacity: usize) -> Result<(), BottleMaxCapError> {
+        if new_capacity > MAX_CAP {
+            Err(BottleMaxCapError::MaxCapExceeded)
+        } else {
+            self.capacity = new_capacity;
+            if self.content.len() > self.capacity {
+                self.content.truncate(self.capacity);
+            }
+            Ok(())
         }
     }
 
