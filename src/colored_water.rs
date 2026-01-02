@@ -2,6 +2,9 @@
 use crossterm::style::Color;
 use serde::{Deserialize, Serialize};
 
+mod iteration;
+pub use iteration::{ColoredWaterIter, PartialColoredWaterIter};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// A group of consecutive [ColoredWaterUnit]s that are all the same color
 pub struct ColoredWaterRun {

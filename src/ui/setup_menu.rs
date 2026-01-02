@@ -1,7 +1,7 @@
 use super::{UiRunError, HIGHLIGHTED_STYLE};
 use crate::{
     bottle::{BottleSample, PartialBottle},
-    colored_water::PartialColoredWaterUnit,
+    colored_water::PartialColoredWaterIter,
     gamestate::{GameStateDisplay, PartialGameState}
 };
 
@@ -193,14 +193,15 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT,
                             SetupCursorState::Content { b_idx, c_idx } => {
                                 //change color of selected unit
                                 if let Some(bottle) = self.gs.bottles.get_mut(b_idx) {
-                                    let next_color = if let Some(current_color) =
-                                        bottle.sample_content_at(c_idx)
-                                    {
-                                        current_color.next()
-                                    } else {
-                                        Some(PartialColoredWaterUnit::first())
-                                    };
-                                    let _ = bottle.try_set_color(c_idx, next_color);
+                                    //iterate through PartialColoredWaterUnits forwards until we can successfully set a new color
+                                    let mut color_iter =
+                                        PartialColoredWaterIter(bottle.sample_content_at(c_idx));
+                                    loop {
+                                        let color_to_use = color_iter.next();
+                                        if bottle.try_set_color(c_idx, color_to_use).is_ok() {
+                                            break;
+                                        }
+                                    }
                                 }
                             }
                             SetupCursorState::Solve => {
@@ -252,14 +253,15 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT,
                             SetupCursorState::Content { b_idx, c_idx } => {
                                 //change color of selected unit
                                 if let Some(bottle) = self.gs.bottles.get_mut(b_idx) {
-                                    let prev_color = if let Some(current_color) =
-                                        bottle.sample_content_at(c_idx)
-                                    {
-                                        current_color.prev()
-                                    } else {
-                                        Some(PartialColoredWaterUnit::last())
-                                    };
-                                    let _ = bottle.try_set_color(c_idx, prev_color);
+                                    //iterate through PartialColoredWaterUnits backwards until we can successfully set a new color
+                                    let mut color_iter =
+                                        PartialColoredWaterIter(bottle.sample_content_at(c_idx));
+                                    loop {
+                                        let color_to_use = color_iter.next_back();
+                                        if bottle.try_set_color(c_idx, color_to_use).is_ok() {
+                                            break;
+                                        }
+                                    }
                                 }
                             }
                             SetupCursorState::Save => {
