@@ -1,4 +1,4 @@
-//! Implementation of a PartialBottle; a [Bottle](crate::bottle::Bottle) with partially unknown colors.
+//! Implementation of a PartialBottle; a [Bottle] with partially unknown colors.
 
 use crate::colored_water::{ColoredWaterUnit, PartialColoredWaterRun, PartialColoredWaterUnit};
 use heapless::Vec;
@@ -110,6 +110,15 @@ impl<const MAX_CAP: usize> PartialBottle<MAX_CAP> {
     /// units long.
     pub const fn get_known_content(&self) -> &Vec<ColoredWaterUnit, MAX_CAP> {
         &self.content
+    }
+
+    /// Take the known content of this PartialBottle. Does not include unknown content.
+    ///
+    /// Note that the length of the return value may be less than the capacity of this PartialBottle,
+    /// though it will never be greater - specifically, it must be somewhere between 0 and `capacity - unknown_count`
+    /// units long.
+    pub fn take_known_content(self) -> Vec<ColoredWaterUnit, MAX_CAP> {
+        self.content
     }
 
     /// Return the maximum capacity of this PartialBottle
@@ -423,30 +432,9 @@ impl<const MAX_CAP: usize> Bottle for PartialBottle<MAX_CAP> {
 impl<const MAX_CAP: usize> From<KnownBottle<MAX_CAP>> for PartialBottle<MAX_CAP> {
     fn from(value: KnownBottle<MAX_CAP>) -> Self {
         PartialBottle {
-            capacity: value.capacity,
-            content: value.content,
+            capacity: value.capacity(),
+            content: value.take_content(),
             unknown_count: 0
         }
     }
-}
-
-impl<const MAX_CAP: usize> TryFrom<PartialBottle<MAX_CAP>> for KnownBottle<MAX_CAP> {
-    type Error = PartialBottleConversionError;
-    fn try_from(value: PartialBottle<MAX_CAP>) -> Result<Self, Self::Error> {
-        if value.get_unknown_count() > 0 {
-            Err(PartialBottleConversionError::UnknownUnits)
-        } else {
-            Ok(KnownBottle {
-                capacity: value.capacity,
-                content: value.content
-            })
-        }
-    }
-}
-
-/// Reasons converting from a [PartialBottle] to a [KnownBottle] may fail
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PartialBottleConversionError {
-    /// The [PartialBottle] contains one or more units of unknown color
-    UnknownUnits
 }
