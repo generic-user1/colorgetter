@@ -121,6 +121,11 @@ pub trait Bottle {
     /// Return the capacity of this bottle
     fn capacity(&self) -> usize;
 
+    /// Returns the [PartialColoredWaterUnit] at the top of this bottle
+    ///
+    /// This returns [None] if there isn't any water in the bottle.
+    fn get_top_color(&self) -> Option<PartialColoredWaterUnit>;
+
     /// Return the largest index in this bottle for which [Bottle::sample_content_at]
     /// returns [Some].
     ///

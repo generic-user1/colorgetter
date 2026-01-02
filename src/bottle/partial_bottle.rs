@@ -226,21 +226,6 @@ impl<const MAX_CAP: usize> PartialBottle<MAX_CAP> {
         })
     }
 
-    /// Returns the [PartialColoredWaterUnit] at the top of this bottle
-    ///
-    /// This returns [None] if there isn't any water in the bottle.
-    pub fn get_top_color(&self) -> Option<PartialColoredWaterUnit> {
-        self.content
-            .last()
-            .copied()
-            .map(|c| c.into())
-            .or(if self.unknown_count > 0 {
-                Some(PartialColoredWaterUnit::UnknownColor)
-            } else {
-                None
-            })
-    }
-
     /// Returns the [PartialColoredWaterRun] at the top of this bottle
     ///
     /// This returns [None] if there isn't any water in the bottle.
@@ -408,6 +393,18 @@ impl<const MAX_CAP: usize> Bottle for PartialBottle<MAX_CAP> {
 
     fn capacity(&self) -> usize {
         self.capacity
+    }
+
+    fn get_top_color(&self) -> Option<PartialColoredWaterUnit> {
+        self.content
+            .last()
+            .copied()
+            .map(|c| c.into())
+            .or(if self.unknown_count > 0 {
+                Some(PartialColoredWaterUnit::UnknownColor)
+            } else {
+                None
+            })
     }
 
     fn sample_at(&self, idx: usize) -> BottleSampleResult {
