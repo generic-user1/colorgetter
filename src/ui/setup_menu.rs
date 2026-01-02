@@ -280,7 +280,7 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT,
                     match self.c_state {
                         SetupCursorState::Capacity { b_idx } => {
                             if let Some(bottle) = self.gs.bottles.get_mut(b_idx) {
-                                let _ = bottle.resize_in_place(bottle.get_capacity() + 1);
+                                let _ = bottle.resize_in_place(bottle.capacity() + 1);
                             }
                         }
                         SetupCursorState::Content { b_idx, c_idx } => {
@@ -288,7 +288,7 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT,
                             //and that our current color isn't empty (so we don't allow empty spaces between two colors)
                             if let Some(bottle) = self.gs.bottles.get(b_idx) {
                                 let new_c_idx = c_idx + 1;
-                                if new_c_idx < bottle.get_capacity()
+                                if new_c_idx < bottle.capacity()
                                     && c_idx
                                         < bottle.get_top_content_idx().map(|i| i + 1).unwrap_or(0)
                                 {
@@ -311,10 +311,10 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT,
                         SetupCursorState::Capacity { b_idx } => {
                             if let Some(bottle) = self.gs.bottles.get_mut(b_idx) {
                                 //don't allow 0 capacity; a 0 capacity doesn't cause any serious problem but does look weird
-                                let new_capacity = bottle.get_capacity().saturating_sub(1);
+                                let new_capacity = bottle.capacity().saturating_sub(1);
                                 if new_capacity >= 1 {
-                                    let _ = bottle
-                                        .resize_in_place(bottle.get_capacity().saturating_sub(1));
+                                    let _ =
+                                        bottle.resize_in_place(bottle.capacity().saturating_sub(1));
                                 }
                             }
                         }

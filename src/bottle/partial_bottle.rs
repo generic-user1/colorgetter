@@ -5,7 +5,9 @@ use heapless::Vec;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
-use super::{BottleCapacityError, BottleMaxCapError, KnownBottle};
+use super::{
+    Bottle, BottleCapacityError, BottleMaxCapError, BottleSampleResult, ColorSetError, KnownBottle
+};
 
 /// One Bottle that may contain [ColoredWaterUnit]s, but where the specific color of some
 /// of the units is unknown.
@@ -108,157 +110,6 @@ impl<const MAX_CAP: usize> PartialBottle<MAX_CAP> {
     /// units long.
     pub const fn get_known_content(&self) -> &Vec<ColoredWaterUnit, MAX_CAP> {
         &self.content
-    }
-
-    /// Try to set the [ColoredWaterUnit] at index `idx` within this bottle to the given `new_color`
-    ///
-    /// Note that `idx` here is 0-based and includes `unknown_count`. If the `unknown_count` is 1, `idx` 0 points
-    /// to the single unknown unit and `idx` 1 points to the first known unit.
-    ///
-    /// If `new_color` is [Some] and the inner value is [PartialColoredWaterUnit::Color], will try to set the
-    /// specified unit to the specified (known) color.
-    ///
-    /// If `new_color` is [Some] and the inner value is [PartialColoredWaterUnit::UnknownColor], will try to set the
-    /// specified unit to an unknown unit.
-    ///
-    /// If `new_color` is [None], will instead try to clear the unit at the given `idx` so that it becomes empty.
-    ///
-    /// If this fails (i.e. returns [Err]), the PartialBottle will be left unchanged.
-    pub fn try_set_color(
-        &mut self,
-        idx: usize,
-        new_color: Option<PartialColoredWaterUnit>
-    ) -> Result<(), PartialColorSetError> {
-        match new_color {
-            None => {
-                // we are trying to set some color to empty. this is allowed only when the color we're trying to set
-                // is the topmost color (whether it's known or unknown), or when it's one unit above the topmost color
-                // (which is a no-op, but not an error)
-                if idx < self.unknown_count {
-                    //we're trying to set an unknown color - need to determine if it's the topmost or not
-                    if (idx + 1) == self.unknown_count {
-                        // trying to set the topmost unknown color to empty
-                        if self.content.is_empty() {
-                            // we have no known colors, so topmost unknown color is top color overall, and this is allowed.
-                            // just decrement unknown count by one
-                            self.unknown_count = self.unknown_count.saturating_sub(1);
-                            Ok(())
-                        } else {
-                            // we have at least one known color, so topmost unknown color is not top overall, and this
-                            // is not allowed
-                            Err(PartialColorSetError::FullAbove)
-                        }
-                    } else {
-                        // trying to set an unknown color to empty when there are unknowns above; not allowed
-                        Err(PartialColorSetError::FullAbove)
-                    }
-                } else {
-                    // trying to set a known color to empty. since we're dealing with known colors,
-                    // adjust the index so that idx 0 points to the bottom known color
-                    let idx = idx - self.unknown_count;
-
-                    if (idx + 1) == self.content.len() {
-                        // trying to set topmost known color to empty; this is allowed
-                        self.content.pop();
-                        Ok(())
-                    } else if idx == self.content.len() {
-                        // trying to set color just above topmost known color to empty; this is
-                        // a no-op but is allowed
-                        Ok(())
-                    } else if idx > self.content.len() {
-                        // trying to set color more than one above topmost known color to empty;
-                        // this is not allowed
-                        Err(PartialColorSetError::EmptyBelow)
-                    } else {
-                        // trying to set non-topmost known color to empty; this is not allowed
-                        Err(PartialColorSetError::FullAbove)
-                    }
-                }
-            }
-            Some(PartialColoredWaterUnit::UnknownColor) => {
-                // we are trying to set some color to unknown. this is allowed only when the color we're trying
-                // to set is either already unknown, or is one unit above the topmost unknown color.
-                if idx < self.unknown_count {
-                    // trying to set an unknown color to unknown; no-op, not an error
-                    Ok(())
-                } else if idx == self.unknown_count {
-                    // trying to set the color one above the topmost unknown to unknown.
-                    // this is allowed, but only if this wouldn't put us over capacity.
-                    if !self.content.is_empty() {
-                        //we're trying to set the bottom-most known color to unknown; this is always allowed
-                        //since we can't increase capacity usage this way
-                        self.content.remove(0);
-                        self.unknown_count += 1;
-                        Ok(())
-                    } else {
-                        //we're trying to set a new topmost color to unknown, which increases capacity usage,
-                        //so we must ensure this wouldn't put us over capacity.
-                        if (self.unknown_count + 1) <= self.capacity {
-                            self.unknown_count += 1;
-                            Ok(())
-                        } else {
-                            Err(PartialColorSetError::ExceedsCapacity)
-                        }
-                    }
-                } else {
-                    // trying to set a color more than one above our topmost unknown color to unknown
-                    // this is never allowed, but we need to determine whether it's because there's a known color
-                    // under us, or empty space. to do that, we'll adjust the index so that 0 points to bottom known color,
-                    // then check if there's a known color there or not.
-                    let idx = idx - self.unknown_count;
-                    if idx < self.content.len() {
-                        Err(PartialColorSetError::KnownBelow)
-                    } else {
-                        Err(PartialColorSetError::EmptyBelow)
-                    }
-                }
-            }
-            Some(PartialColoredWaterUnit::Color(c)) => {
-                // we are trying to set some color to a known color. this is allowed
-                // as long as the color we are trying to set is either already known, the topmost unknown color,
-                // or one above the topmost color (be it known or unknown)
-                if idx < self.unknown_count {
-                    // we are trying to set some unknown color to a known color;
-                    // check if this is the topmost unknown color
-                    if (idx + 1) == self.unknown_count {
-                        // we are indeed modifying the topmost unknown color; this is allowed
-                        self.unknown_count -= 1;
-                        self.content.insert(0, c).unwrap();
-                        Ok(())
-                    } else {
-                        // we are modifying an unknown color that isn't the topmost unknown; this isn't allowed.
-                        Err(PartialColorSetError::UnknownAbove)
-                    }
-                } else {
-                    // we are working with a color that isn't unknown; adjust our index so that 0 points to the first
-                    // known color
-                    let idx = idx - self.unknown_count;
-
-                    if idx < self.content.len() {
-                        // we are modifying some known color into a (possibly different) known color; this is allowed
-                        *self.content.get_mut(idx).unwrap() = c;
-                        Ok(())
-                    } else if idx == self.content.len() {
-                        // we are modifying the unit one above the topmost known color; this would increase
-                        // capacity usage so we need to make sure we don't go over capacity
-                        if (self.unknown_count + self.content.len() + 1) <= self.capacity {
-                            self.content.push(c).unwrap();
-                            Ok(())
-                        } else {
-                            Err(PartialColorSetError::ExceedsCapacity)
-                        }
-                    } else {
-                        // we are modifying a location more than one unit above our current topmost color; this isn't allowed
-                        Err(PartialColorSetError::EmptyBelow)
-                    }
-                }
-            }
-        }
-    }
-
-    /// Return the capacity of this PartialBottle.
-    pub const fn get_capacity(&self) -> usize {
-        self.capacity
     }
 
     /// Return the maximum capacity of this PartialBottle
@@ -413,23 +264,167 @@ impl<const MAX_CAP: usize> PartialBottle<MAX_CAP> {
     }
 }
 
-///Reasons that setting a [PartialColoredWaterUnit] within a [PartialBottle] may fail.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PartialColorSetError {
-    /// Attempted to set a unit to a color (known or unknown) at a location that has empty space below it
-    EmptyBelow,
+impl<const MAX_CAP: usize> Bottle for PartialBottle<MAX_CAP> {
+    fn try_set_color(
+        &mut self,
+        idx: usize,
+        new_color: Option<PartialColoredWaterUnit>
+    ) -> Result<(), ColorSetError> {
+        match new_color {
+            None => {
+                // we are trying to set some color to empty. this is allowed only when the color we're trying to set
+                // is the topmost color (whether it's known or unknown), or when it's one unit above the topmost color
+                // (which is a no-op, but not an error)
+                if idx < self.unknown_count {
+                    //we're trying to set an unknown color - need to determine if it's the topmost or not
+                    if (idx + 1) == self.unknown_count {
+                        // trying to set the topmost unknown color to empty
+                        if self.content.is_empty() {
+                            // we have no known colors, so topmost unknown color is top color overall, and this is allowed.
+                            // just decrement unknown count by one
+                            self.unknown_count = self.unknown_count.saturating_sub(1);
+                            Ok(())
+                        } else {
+                            // we have at least one known color, so topmost unknown color is not top overall, and this
+                            // is not allowed
+                            Err(ColorSetError::FullAbove)
+                        }
+                    } else {
+                        // trying to set an unknown color to empty when there are unknowns above; not allowed
+                        Err(ColorSetError::FullAbove)
+                    }
+                } else {
+                    // trying to set a known color to empty. since we're dealing with known colors,
+                    // adjust the index so that idx 0 points to the bottom known color
+                    let idx = idx - self.unknown_count;
 
-    /// Attempted to set a unit to empty at a location that has non-empty space above it
-    FullAbove,
+                    if (idx + 1) == self.content.len() {
+                        // trying to set topmost known color to empty; this is allowed
+                        self.content.pop();
+                        Ok(())
+                    } else if idx == self.content.len() {
+                        // trying to set color just above topmost known color to empty; this is
+                        // a no-op but is allowed
+                        Ok(())
+                    } else if idx > self.content.len() {
+                        // trying to set color more than one above topmost known color to empty;
+                        // this is not allowed
+                        Err(ColorSetError::EmptyBelow)
+                    } else {
+                        // trying to set non-topmost known color to empty; this is not allowed
+                        Err(ColorSetError::FullAbove)
+                    }
+                }
+            }
+            Some(PartialColoredWaterUnit::UnknownColor) => {
+                // we are trying to set some color to unknown. this is allowed only when the color we're trying
+                // to set is either already unknown, or is one unit above the topmost unknown color.
+                if idx < self.unknown_count {
+                    // trying to set an unknown color to unknown; no-op, not an error
+                    Ok(())
+                } else if idx == self.unknown_count {
+                    // trying to set the color one above the topmost unknown to unknown.
+                    // this is allowed, but only if this wouldn't put us over capacity.
+                    if !self.content.is_empty() {
+                        //we're trying to set the bottom-most known color to unknown; this is always allowed
+                        //since we can't increase capacity usage this way
+                        self.content.remove(0);
+                        self.unknown_count += 1;
+                        Ok(())
+                    } else {
+                        //we're trying to set a new topmost color to unknown, which increases capacity usage,
+                        //so we must ensure this wouldn't put us over capacity.
+                        if (self.unknown_count + 1) <= self.capacity {
+                            self.unknown_count += 1;
+                            Ok(())
+                        } else {
+                            Err(ColorSetError::ExceedsCapacity)
+                        }
+                    }
+                } else {
+                    // trying to set a color more than one above our topmost unknown color to unknown
+                    // this is never allowed, but we need to determine whether it's because there's a known color
+                    // under us, or empty space. to do that, we'll adjust the index so that 0 points to bottom known color,
+                    // then check if there's a known color there or not.
+                    let idx = idx - self.unknown_count;
+                    if idx < self.content.len() {
+                        Err(ColorSetError::KnownBelow)
+                    } else {
+                        Err(ColorSetError::EmptyBelow)
+                    }
+                }
+            }
+            Some(PartialColoredWaterUnit::Color(c)) => {
+                // we are trying to set some color to a known color. this is allowed
+                // as long as the color we are trying to set is either already known, the topmost unknown color,
+                // or one above the topmost color (be it known or unknown)
+                if idx < self.unknown_count {
+                    // we are trying to set some unknown color to a known color;
+                    // check if this is the topmost unknown color
+                    if (idx + 1) == self.unknown_count {
+                        // we are indeed modifying the topmost unknown color; this is allowed
+                        self.unknown_count -= 1;
+                        self.content.insert(0, c).unwrap();
+                        Ok(())
+                    } else {
+                        // we are modifying an unknown color that isn't the topmost unknown; this isn't allowed.
+                        Err(ColorSetError::UnknownAbove)
+                    }
+                } else {
+                    // we are working with a color that isn't unknown; adjust our index so that 0 points to the first
+                    // known color
+                    let idx = idx - self.unknown_count;
 
-    /// Attempted to set a unit to an unknown color at a location that has known colors below it
-    KnownBelow,
+                    if idx < self.content.len() {
+                        // we are modifying some known color into a (possibly different) known color; this is allowed
+                        *self.content.get_mut(idx).unwrap() = c;
+                        Ok(())
+                    } else if idx == self.content.len() {
+                        // we are modifying the unit one above the topmost known color; this would increase
+                        // capacity usage so we need to make sure we don't go over capacity
+                        if (self.unknown_count + self.content.len() + 1) <= self.capacity {
+                            self.content.push(c).unwrap();
+                            Ok(())
+                        } else {
+                            Err(ColorSetError::ExceedsCapacity)
+                        }
+                    } else {
+                        // we are modifying a location more than one unit above our current topmost color; this isn't allowed
+                        Err(ColorSetError::EmptyBelow)
+                    }
+                }
+            }
+        }
+    }
 
-    /// Attempted to set a unit to a known color at a location that has unknown colors above it
-    UnknownAbove,
+    fn capacity(&self) -> usize {
+        self.capacity
+    }
 
-    /// Attempted to set a unit at a location beyond the capacity of the destination [PartialBottle]
-    ExceedsCapacity
+    fn sample_at(&self, idx: usize) -> BottleSampleResult {
+        if idx > self.capacity() {
+            BottleSampleResult::OutOfBounds
+        } else if idx >= self.get_unknown_count() {
+            // adjust idx so that idx 0 points to first known color
+            let idx = idx - self.get_unknown_count();
+            let sampled = self.get_known_content().get(idx);
+            if let Some(&sampled) = sampled {
+                sampled.into()
+            } else {
+                BottleSampleResult::Empty
+            }
+        } else {
+            // idx is inside our unknown count so it must point to unknown
+            BottleSampleResult::UnknownColor
+        }
+    }
+
+    fn get_top_content_idx(&self) -> Option<usize> {
+        //first, find our overall content length including both known and unknown
+        let overall_content_len = self.get_unknown_count() + self.get_known_content().len();
+        //then, our answer is our overall content length minus 1, or None if our overall length was zero.
+        overall_content_len.checked_sub(1)
+    }
 }
 
 impl<const MAX_CAP: usize> From<KnownBottle<MAX_CAP>> for PartialBottle<MAX_CAP> {

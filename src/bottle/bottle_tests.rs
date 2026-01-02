@@ -6,13 +6,13 @@ use heapless::Vec;
 fn test_bottle_creation() {
     let bottle1: KnownBottle<4> = KnownBottle::try_new(4).unwrap();
 
-    assert_eq!(bottle1.get_capacity(), 4);
+    assert_eq!(bottle1.capacity(), 4);
     assert_eq!(*bottle1.get_content(), Vec::<ColoredWaterUnit, 4>::new());
 
     let bottle2_base_content = [ColoredWaterUnit::Aqua, ColoredWaterUnit::Blue];
     let bottle2: KnownBottle<4> = KnownBottle::try_with_content(&bottle2_base_content).unwrap();
 
-    assert_eq!(bottle2.get_capacity(), 2);
+    assert_eq!(bottle2.capacity(), 2);
     assert_eq!(bottle2.get_content(), &bottle2_base_content);
 }
 
@@ -21,23 +21,23 @@ fn test_bottle_resize() {
     let bottle_base_content = bottle_content!(Aqua, Blue, Brown, Blue);
     let base_bottle: KnownBottle<8> = KnownBottle::try_with_content(&bottle_base_content).unwrap();
 
-    assert_eq!(base_bottle.get_capacity(), 4);
+    assert_eq!(base_bottle.capacity(), 4);
     assert_eq!(base_bottle.get_content(), &bottle_base_content);
 
     let smaller_bottle: KnownBottle<4> = base_bottle.try_get_resized(3).unwrap();
 
-    assert_eq!(smaller_bottle.get_capacity(), 3);
+    assert_eq!(smaller_bottle.capacity(), 3);
     assert_eq!(smaller_bottle.get_content(), &bottle_base_content[..3]);
 
     let larger_bottle: KnownBottle<4> = smaller_bottle.try_get_resized(5).unwrap();
-    assert_eq!(larger_bottle.get_capacity(), 5);
+    assert_eq!(larger_bottle.capacity(), 5);
     assert_eq!(larger_bottle.get_content(), &bottle_base_content[..3]);
 
     let mut in_place_resized_bottle = base_bottle.clone();
 
     let resize_result = in_place_resized_bottle.resize_in_place(3);
     assert!(resize_result.is_ok());
-    assert_eq!(in_place_resized_bottle.get_capacity(), 3);
+    assert_eq!(in_place_resized_bottle.capacity(), 3);
     assert_eq!(
         in_place_resized_bottle.get_content(),
         &bottle_base_content[..3]
@@ -46,7 +46,7 @@ fn test_bottle_resize() {
     // ensure we still succeed up to MAX_CAP of 8
     let resize_result = in_place_resized_bottle.resize_in_place(8);
     assert!(resize_result.is_ok());
-    assert_eq!(in_place_resized_bottle.get_capacity(), 8);
+    assert_eq!(in_place_resized_bottle.capacity(), 8);
     assert_eq!(
         in_place_resized_bottle.get_content(),
         &bottle_base_content[..3]
@@ -55,7 +55,7 @@ fn test_bottle_resize() {
     // ensure we fail beyond MAX_CAP of 8
     let resize_result = in_place_resized_bottle.resize_in_place(9);
     assert!(resize_result.is_err());
-    assert_eq!(in_place_resized_bottle.get_capacity(), 8);
+    assert_eq!(in_place_resized_bottle.capacity(), 8);
     assert_eq!(
         in_place_resized_bottle.get_content(),
         &bottle_base_content[..3]
@@ -63,7 +63,7 @@ fn test_bottle_resize() {
 
     let resize_result = in_place_resized_bottle.resize_in_place(5);
     assert!(resize_result.is_ok());
-    assert_eq!(in_place_resized_bottle.get_capacity(), 5);
+    assert_eq!(in_place_resized_bottle.capacity(), 5);
     assert_eq!(
         in_place_resized_bottle.get_content(),
         &bottle_base_content[..3]
@@ -72,14 +72,14 @@ fn test_bottle_resize() {
     let taken_resized_bottle1 = base_bottle.clone();
 
     let taken_resized_bottle2 = taken_resized_bottle1.try_take_as_resized(3).unwrap();
-    assert_eq!(taken_resized_bottle2.get_capacity(), 3);
+    assert_eq!(taken_resized_bottle2.capacity(), 3);
     assert_eq!(
         taken_resized_bottle2.get_content(),
         &bottle_base_content[..3]
     );
 
     let taken_resized_bottle3 = taken_resized_bottle2.try_take_as_resized(5).unwrap();
-    assert_eq!(taken_resized_bottle3.get_capacity(), 5);
+    assert_eq!(taken_resized_bottle3.capacity(), 5);
     assert_eq!(
         taken_resized_bottle3.get_content(),
         &bottle_base_content[..3]

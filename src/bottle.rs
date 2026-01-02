@@ -1,6 +1,6 @@
 //! Implementation of a bottle for colored water
 
-use crate::colored_water::{ColoredWaterRun, ColoredWaterUnit};
+use crate::colored_water::{ColoredWaterRun, ColoredWaterUnit, PartialColoredWaterUnit};
 use heapless::Vec;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -12,10 +12,10 @@ use std::{
 mod bottle_tests;
 
 mod bottle_trait;
-pub use bottle_trait::{Bottle, BottleSampleConversionError, BottleSampleResult};
+pub use bottle_trait::{Bottle, BottleSampleConversionError, BottleSampleResult, ColorSetError};
 
 mod partial_bottle;
-pub use partial_bottle::{PartialBottle, PartialBottleConversionError, PartialColorSetError};
+pub use partial_bottle::{PartialBottle, PartialBottleConversionError};
 
 /// One Bottle that may contain [ColoredWaterUnit]s, all of which are known.
 ///
@@ -123,53 +123,6 @@ impl<const MAX_CAP: usize> KnownBottle<MAX_CAP> {
     /// though it will never be greater.
     pub const fn get_content(&self) -> &Vec<ColoredWaterUnit, MAX_CAP> {
         &self.content
-    }
-
-    /// Try to set the [ColoredWaterUnit] at index `idx` within this bottle to the given `new_color`
-    ///
-    /// If `new_color` is [None], will instead try to clear the [ColoredWaterUnit] at the given `idx` so that it becomes empty.
-    ///
-    /// If this fails (i.e. returns [Err]), the Bottle will be left unchanged.
-    pub fn try_set_color(
-        &mut self,
-        idx: usize,
-        new_color: Option<ColoredWaterUnit>
-    ) -> Result<(), ColorSetError> {
-        if idx > self.content.len() {
-            //trying to set color more than 1 above our current highest
-            Err(ColorSetError::EmptyBelow)
-        } else if idx == self.content.len() {
-            //trying to set color one above our current highest
-            if self.content.len() + 1 > self.capacity {
-                Err(ColorSetError::ExceedsCapacity)
-            } else {
-                if let Some(new_color) = new_color {
-                    self.content.push(new_color).unwrap();
-                }
-                Ok(())
-            }
-        } else if (idx + 1) == self.content.len() {
-            //trying to set our current highest color
-            if let Some(new_color) = new_color {
-                *self.content.get_mut(idx).unwrap() = new_color;
-            } else {
-                self.content.pop();
-            }
-            Ok(())
-        } else {
-            //trying to set a color below our highest color
-            if let Some(new_color) = new_color {
-                *self.content.get_mut(idx).unwrap() = new_color;
-                Ok(())
-            } else {
-                Err(ColorSetError::FullAbove)
-            }
-        }
-    }
-
-    /// Return the capacity of this KnownBottle.
-    pub const fn get_capacity(&self) -> usize {
-        self.capacity
     }
 
     /// Return the maximum capacity of this KnownBottle
@@ -407,6 +360,83 @@ impl<const MAX_CAP: usize> KnownBottle<MAX_CAP> {
     }
 }
 
+impl<const MAX_CAP: usize> Bottle for KnownBottle<MAX_CAP> {
+    /// Try to set the [ColoredWaterUnit] at index `idx` within this bottle to the given `new_color`
+    ///
+    /// Note that although the [Bottle] trait requires this method accept a [PartialColoredWaterUnit],
+    /// unknown colors (i.e. [PartialColoredWaterUnit::UnknownColor]) are not supported and will always result in
+    /// [ColorSetError::UnknownNotSupported]
+    fn try_set_color(
+        &mut self,
+        idx: usize,
+        new_color: Option<PartialColoredWaterUnit>
+    ) -> Result<(), ColorSetError> {
+        let new_color: Option<ColoredWaterUnit> = if let Some(new_color) = new_color {
+            Some(
+                new_color
+                    .try_into()
+                    .map_err(|_| ColorSetError::UnknownNotSupported)?
+            )
+        } else {
+            None
+        };
+
+        if idx > self.content.len() {
+            //trying to set color more than 1 above our current highest
+            Err(ColorSetError::EmptyBelow)
+        } else if idx == self.content.len() {
+            //trying to set color one above our current highest
+            if self.content.len() + 1 > self.capacity {
+                Err(ColorSetError::ExceedsCapacity)
+            } else {
+                if let Some(new_color) = new_color {
+                    self.content.push(new_color).unwrap();
+                }
+                Ok(())
+            }
+        } else if (idx + 1) == self.content.len() {
+            //trying to set our current highest color
+            if let Some(new_color) = new_color {
+                *self.content.get_mut(idx).unwrap() = new_color;
+            } else {
+                self.content.pop();
+            }
+            Ok(())
+        } else {
+            //trying to set a color below our highest color
+            if let Some(new_color) = new_color {
+                *self.content.get_mut(idx).unwrap() = new_color;
+                Ok(())
+            } else {
+                Err(ColorSetError::FullAbove)
+            }
+        }
+    }
+
+    fn capacity(&self) -> usize {
+        self.capacity
+    }
+
+    fn sample_at(&self, idx: usize) -> BottleSampleResult {
+        if idx > self.capacity() {
+            BottleSampleResult::OutOfBounds
+        } else {
+            let sampled = self.get_content().get(idx);
+            if let Some(&sampled) = sampled {
+                sampled.into()
+            } else {
+                BottleSampleResult::Empty
+            }
+        }
+    }
+
+    fn get_top_content_idx(&self) -> Option<usize> {
+        //either we have content and the answer is one minus our length,
+        //or we don't have content and we want to return None
+        self.get_content().len().checked_sub(1)
+    }
+}
+
 // We need to implement Ord on bottles so that we can sort them into some standardized order.
 impl<const MAX_CAP: usize> Ord for KnownBottle<MAX_CAP> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
@@ -444,19 +474,6 @@ impl<const MAX_CAP: usize> PartialOrd for KnownBottle<MAX_CAP> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
-}
-
-///Reasons that setting a [ColoredWaterUnit] within a [KnownBottle] may fail.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ColorSetError {
-    /// Attempted to set a color at a location that has empty space below it
-    EmptyBelow,
-
-    /// Attempted to set a color to empty at a location that has non-empty space above it
-    FullAbove,
-
-    /// Attempted to set a color to a location beyond the capacity of the destination [KnownBottle]
-    ExceedsCapacity
 }
 
 ///Reasons that pouring a [ColoredWaterRun] into a [KnownBottle] may fail.
@@ -509,7 +526,7 @@ impl From<PourInError> for PourOutError {
 /// Examples:
 /// ```
 /// use colorgetter::bottle;
-/// use colorgetter::bottle::KnownBottle;
+/// use colorgetter::bottle::{KnownBottle, Bottle};
 /// use colorgetter::colored_water::ColoredWaterUnit;
 ///
 /// // Bottle defined with content, explicit capacity, and explicit max capacity (allows us to forgo type hinting our variable)
@@ -519,7 +536,7 @@ impl From<PourInError> for PourOutError {
 ///     [ColoredWaterUnit::Red, ColoredWaterUnit::Green, ColoredWaterUnit::Yellow]
 /// );
 ///
-/// assert_eq!(sized_bottle1.get_capacity(), 4);
+/// assert_eq!(sized_bottle1.capacity(), 4);
 /// assert_eq!(sized_bottle1.get_max_capacity(), 5);
 ///
 /// // Bottle defined with content and explicit capacity
@@ -528,7 +545,7 @@ impl From<PourInError> for PourOutError {
 ///     *sized_bottle2.get_content(),
 ///     [ColoredWaterUnit::Red, ColoredWaterUnit::Green, ColoredWaterUnit::Yellow]
 /// );
-/// assert_eq!(sized_bottle2.get_capacity(), 4);
+/// assert_eq!(sized_bottle2.capacity(), 4);
 ///
 /// // Bottle defined with content only
 /// let unsized_bottle1: KnownBottle<4> = bottle!([Red, Green, Yellow]);
@@ -536,7 +553,7 @@ impl From<PourInError> for PourOutError {
 ///     *unsized_bottle1.get_content(),
 ///     [ColoredWaterUnit::Red, ColoredWaterUnit::Green, ColoredWaterUnit::Yellow]
 /// );
-/// assert_eq!(unsized_bottle1.get_capacity(), 3);
+/// assert_eq!(unsized_bottle1.capacity(), 3);
 ///
 /// // Bottle defined with content only, omitting square brackets
 /// let unsized_bottle2: KnownBottle<4> = bottle!(Red, Green, Yellow);
@@ -544,7 +561,7 @@ impl From<PourInError> for PourOutError {
 ///     *unsized_bottle2.get_content(),
 ///     [ColoredWaterUnit::Red, ColoredWaterUnit::Green, ColoredWaterUnit::Yellow]
 /// );
-/// assert_eq!(unsized_bottle2.get_capacity(), 3);
+/// assert_eq!(unsized_bottle2.capacity(), 3);
 /// ```
 #[macro_export]
 macro_rules! bottle {

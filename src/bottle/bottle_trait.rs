@@ -1,7 +1,29 @@
-//! Definition of the Bottle trait and implementations for [KnownBottle] and [PartialBottle]
+//! Definition of the Bottle trait
 
-use super::{KnownBottle, PartialBottle};
 use crate::colored_water::{ColoredWaterUnit, PartialColoredWaterUnit};
+
+///Reasons that setting a [PartialColoredWaterUnit](crate::colored_water::PartialColoredWaterUnit) within a [Bottle] may fail.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ColorSetError {
+    /// Attempted to set a unit to a color (known or unknown) at a location that has empty space below it
+    EmptyBelow,
+
+    /// Attempted to set a unit to empty at a location that has non-empty space above it
+    FullAbove,
+
+    /// Attempted to set a unit to an unknown color at a location that has known colors below it
+    KnownBelow,
+
+    /// Attempted to set a unit to a known color at a location that has unknown colors above it
+    UnknownAbove,
+
+    /// Attempted to set a unit at a location beyond the capacity of the destination bottle
+    ExceedsCapacity,
+
+    /// Attempted to set a unit to [PartialColoredWaterUnit::UnknownColor](crate::colored_water::PartialColoredWaterUnit::UnknownColor)
+    /// in a bottle that only supports [PartialColoredWaterUnit::Color](crate::colored_water::PartialColoredWaterUnit::Color)
+    UnknownNotSupported
+}
 
 /// The possible values that [Bottle::sample_at] may return
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -74,8 +96,25 @@ impl From<ColoredWaterUnit> for BottleSampleResult {
 
 /// Types representing bottles of colored water.
 ///
-/// This abstracts some of the behavior for [KnownBottle] and [PartialBottle]
+/// This abstracts some of the behavior for [KnownBottle](super::KnownBottle) and [PartialBottle](super::PartialBottle)
 pub trait Bottle {
+    /// Try to set the [PartialColoredWaterUnit] at index `idx` within this bottle to the given `new_color`
+    ///
+    /// If `new_color` is [Some] and the inner value is [PartialColoredWaterUnit::Color], will try to set the
+    /// specified unit to the specified [ColoredWaterUnit].
+    ///
+    /// If `new_color` is [Some] and the inner value is [PartialColoredWaterUnit::UnknownColor], will try to set the
+    /// specified unit to an unknown unit.
+    ///
+    /// If `new_color` is [None], will instead try to clear the unit at the given `idx` so that it becomes empty.
+    ///
+    /// If this fails (i.e. returns [Err]), the Bottle will be left unchanged.
+    fn try_set_color(
+        &mut self,
+        idx: usize,
+        new_color: Option<PartialColoredWaterUnit>
+    ) -> Result<(), ColorSetError>;
+
     /// Sample the color in this bottle at the given index.
     fn sample_at(&self, idx: usize) -> BottleSampleResult;
 
@@ -110,61 +149,5 @@ pub trait Bottle {
     /// that index for any reason, or if there is a color but it's unknown, return [None].
     fn sample_known_color_at(&self, idx: usize) -> Option<ColoredWaterUnit> {
         self.sample_at(idx).try_into().ok()
-    }
-}
-
-impl<const MAX_CAP: usize> Bottle for KnownBottle<MAX_CAP> {
-    fn capacity(&self) -> usize {
-        self.get_capacity()
-    }
-
-    fn sample_at(&self, idx: usize) -> BottleSampleResult {
-        if idx > self.capacity() {
-            BottleSampleResult::OutOfBounds
-        } else {
-            let sampled = self.get_content().get(idx);
-            if let Some(&sampled) = sampled {
-                sampled.into()
-            } else {
-                BottleSampleResult::Empty
-            }
-        }
-    }
-
-    fn get_top_content_idx(&self) -> Option<usize> {
-        //either we have content and the answer is one minus our length,
-        //or we don't have content and we want to return None
-        self.get_content().len().checked_sub(1)
-    }
-}
-
-impl<const MAX_CAP: usize> Bottle for PartialBottle<MAX_CAP> {
-    fn capacity(&self) -> usize {
-        self.get_capacity()
-    }
-
-    fn sample_at(&self, idx: usize) -> BottleSampleResult {
-        if idx > self.capacity() {
-            BottleSampleResult::OutOfBounds
-        } else if idx >= self.get_unknown_count() {
-            // adjust idx so that idx 0 points to first known color
-            let idx = idx - self.get_unknown_count();
-            let sampled = self.get_known_content().get(idx);
-            if let Some(&sampled) = sampled {
-                sampled.into()
-            } else {
-                BottleSampleResult::Empty
-            }
-        } else {
-            // idx is inside our unknown count so it must point to unknown
-            BottleSampleResult::UnknownColor
-        }
-    }
-
-    fn get_top_content_idx(&self) -> Option<usize> {
-        //first, find our overall content length including both known and unknown
-        let overall_content_len = self.get_unknown_count() + self.get_known_content().len();
-        //then, our answer is our overall content length minus 1, or None if our overall length was zero.
-        overall_content_len.checked_sub(1)
     }
 }
