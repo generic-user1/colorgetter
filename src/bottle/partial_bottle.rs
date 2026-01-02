@@ -1,6 +1,6 @@
 //! Implementation of a PartialBottle; a [Bottle] with partially unknown colors.
 
-use crate::colored_water::{ColoredWaterUnit, PartialColoredWaterRun, PartialColoredWaterUnit};
+use crate::colored_water::{ColoredWaterUnit, PartialColoredWaterUnit};
 use heapless::Vec;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -225,37 +225,6 @@ impl<const MAX_CAP: usize> PartialBottle<MAX_CAP> {
             unknown_count: self.unknown_count.min(new_capacity)
         })
     }
-
-    /// Returns the [PartialColoredWaterRun] at the top of this bottle
-    ///
-    /// This returns [None] if there isn't any water in the bottle.
-    pub fn get_top_color_run(&self) -> Option<PartialColoredWaterRun> {
-        if let Some(top_color) = self.get_top_color() {
-            let mut color_count: usize = 0;
-
-            if let PartialColoredWaterUnit::Color(top_color) = top_color {
-                // the top color is known, so iterate through our known colors until we find one that doesn't match
-                // or we run out of known colors.
-                for color in self.content.iter().rev() {
-                    if *color == top_color {
-                        color_count += 1;
-                    } else {
-                        break;
-                    }
-                }
-            } else {
-                //the top color is unknown, so the color count is just the unknown_count
-                color_count = self.unknown_count;
-            }
-
-            Some(PartialColoredWaterRun {
-                color: top_color,
-                size: color_count
-            })
-        } else {
-            None
-        }
-    }
 }
 
 impl<const MAX_CAP: usize> Bottle for PartialBottle<MAX_CAP> {
@@ -393,18 +362,6 @@ impl<const MAX_CAP: usize> Bottle for PartialBottle<MAX_CAP> {
 
     fn capacity(&self) -> usize {
         self.capacity
-    }
-
-    fn get_top_color(&self) -> Option<PartialColoredWaterUnit> {
-        self.content
-            .last()
-            .copied()
-            .map(|c| c.into())
-            .or(if self.unknown_count > 0 {
-                Some(PartialColoredWaterUnit::UnknownColor)
-            } else {
-                None
-            })
     }
 
     fn sample_at(&self, idx: usize) -> BottleSampleResult {

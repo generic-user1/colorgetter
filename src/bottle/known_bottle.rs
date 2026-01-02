@@ -168,28 +168,6 @@ impl<const MAX_CAP: usize> KnownBottle<MAX_CAP> {
         })
     }
 
-    /// Returns the [ColoredWaterRun] at the top of this bottle
-    ///
-    /// This returns [None] if there isn't any water in the bottle.
-    pub fn get_top_color_run(&self) -> Option<ColoredWaterRun> {
-        if let Some(top_color) = self.get_top_color().map(|c| c.try_into().unwrap()) {
-            let mut color_count: usize = 0;
-            for color in self.content.iter().rev() {
-                if *color == top_color {
-                    color_count += 1;
-                } else {
-                    break;
-                }
-            }
-            Some(ColoredWaterRun {
-                color: top_color,
-                size: color_count
-            })
-        } else {
-            None
-        }
-    }
-
     /// Attempt to pour a [ColoredWaterRun] into this bottle.
     ///
     /// If this is successful, will return a new [ColoredWaterRun] representing the portion of
@@ -275,7 +253,7 @@ impl<const MAX_CAP: usize> KnownBottle<MAX_CAP> {
         &mut self,
         destination: &mut KnownBottle<OTHER_MAX_CAP>
     ) -> Result<(), PourOutError> {
-        if let Some(run_to_pour) = self.get_top_color_run() {
+        if let Some(run_to_pour) = self.get_top_color_run().map(|c| c.try_into().unwrap()) {
             let remaining_part_of_run = destination.try_pour_in(run_to_pour)?;
 
             //Given how many units we tried to pour and how many units couldn't be poured, find the number of units that were actually poured
@@ -299,7 +277,7 @@ impl<const MAX_CAP: usize> KnownBottle<MAX_CAP> {
         &self,
         destination: &KnownBottle<OTHER_MAX_CAP>
     ) -> Result<(), PourOutError> {
-        if let Some(run_to_pour) = self.get_top_color_run() {
+        if let Some(run_to_pour) = self.get_top_color_run().map(|c| c.try_into().unwrap()) {
             match destination.test_pour_in(run_to_pour) {
                 Ok(_) => Ok(()),
                 Err(e) => Err(e.into())
@@ -377,20 +355,6 @@ impl<const MAX_CAP: usize> Bottle for KnownBottle<MAX_CAP> {
 
     fn capacity(&self) -> usize {
         self.capacity
-    }
-
-    /// Returns the [ColoredWaterUnit] at the top of this bottle
-    ///
-    /// This returns [None] if there isn't any water in the bottle.
-    ///
-    /// Note that although the [Bottle] trait requires this method return a [PartialColoredWaterUnit],
-    /// unknown colors (i.e. [PartialColoredWaterUnit::UnknownColor]) are not supported by [KnownBottle] and so
-    /// the return value (if [Some]) will always safely convert into a [ColoredWaterUnit] with its [TryInto] implementation.
-    fn get_top_color(&self) -> Option<PartialColoredWaterUnit> {
-        self.content
-            .last()
-            .copied()
-            .map(PartialColoredWaterUnit::from)
     }
 
     fn sample_at(&self, idx: usize) -> BottleSampleResult {

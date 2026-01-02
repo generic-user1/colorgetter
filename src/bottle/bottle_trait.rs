@@ -1,6 +1,6 @@
 //! Definition of the Bottle trait
 
-use crate::colored_water::{ColoredWaterUnit, PartialColoredWaterUnit};
+use crate::colored_water::{ColoredWaterUnit, PartialColoredWaterRun, PartialColoredWaterUnit};
 
 ///Reasons that setting a [PartialColoredWaterUnit](crate::colored_water::PartialColoredWaterUnit) within a [Bottle] may fail.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -124,7 +124,45 @@ pub trait Bottle {
     /// Returns the [PartialColoredWaterUnit] at the top of this bottle
     ///
     /// This returns [None] if there isn't any water in the bottle.
-    fn get_top_color(&self) -> Option<PartialColoredWaterUnit>;
+    fn get_top_color(&self) -> Option<PartialColoredWaterUnit> {
+        if let Some(idx) = self.get_top_content_idx() {
+            self.sample_content_at(idx)
+        } else {
+            None
+        }
+    }
+
+    /// Returns the [PartialColoredWaterRun] at the top of this bottle
+    ///
+    /// This returns [None] if there isn't any water in the bottle.
+    fn get_top_color_run(&self) -> Option<PartialColoredWaterRun> {
+        if let Some(top_idx) = self.get_top_content_idx() {
+            let color = self.sample_content_at(top_idx).unwrap();
+            let mut color_count = 0;
+            let mut cur_idx = top_idx;
+            loop {
+                let sample_result = self.sample_content_at(cur_idx).unwrap();
+                if sample_result == color {
+                    color_count += 1;
+                    if let Some(new_idx) = cur_idx.checked_sub(1) {
+                        cur_idx = new_idx;
+                    } else {
+                        //we've looped through all colors we can
+                        break;
+                    }
+                } else {
+                    //we found a color that didn't match
+                    break;
+                }
+            }
+            Some(PartialColoredWaterRun {
+                color,
+                size: color_count
+            })
+        } else {
+            None
+        }
+    }
 
     /// Return the largest index in this bottle for which [Bottle::sample_content_at]
     /// returns [Some].
