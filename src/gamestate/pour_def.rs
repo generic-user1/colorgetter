@@ -40,9 +40,7 @@ impl<'a, const BCOUNT: usize, const BSIZE: usize> ValidPour<'a, BCOUNT, BSIZE> {
             .ok_or(PourError::MissingBottle)?;
 
         // test whether the pour would succeed by copying the two bottles and performing the pour on those copies
-        if let Err(e) = source_bottle.test_pour_out(dest_bottle) {
-            return Err(e.into());
-        }
+        source_bottle.test_pour_out(dest_bottle)?;
 
         // if we reached this point, the pour is valid; construct and return
         Ok(ValidPour {
