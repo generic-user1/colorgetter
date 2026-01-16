@@ -22,7 +22,7 @@ impl Iterator for ColoredWaterIter {
 /// Iterator over possible values of [ColoredWaterUnit] in the opposite direction to [ColoredWaterIter]
 ///
 /// The only field tracks the color last-yielded by the iterator. It
-/// may be [None] - when it is, the next color to be yielded will be [ColoredWaterUnit::first].
+/// may be [None] - when it is, the next color to be yielded will be [ColoredWaterUnit::last].
 /// In other words, this iterator resumes iteration after it has ended.
 pub struct RevColoredWaterIter(pub Option<ColoredWaterUnit>);
 
@@ -60,7 +60,7 @@ impl Iterator for PartialColoredWaterIter {
 /// Iterator over possible values of [PartialColoredWaterUnit] in the opposite direction to [PartialColoredWaterIter]
 ///
 /// The only field tracks the color last-yielded by the iterator. It
-/// may be [None] - when it is, the next color to be yielded will be [PartialColoredWaterUnit::first].
+/// may be [None] - when it is, the next color to be yielded will be [PartialColoredWaterUnit::last].
 /// In other words, this iterator resumes iteration after it has ended.
 pub struct RevPartialColoredWaterIter(pub Option<PartialColoredWaterUnit>);
 
