@@ -10,6 +10,7 @@ use crossterm::{
     QueueableCommand
 };
 use std::{
+    hash::Hash,
     io,
     num::NonZeroUsize,
     ops::{Bound, RangeBounds},
@@ -237,4 +238,13 @@ pub trait GameState: Clone {
     fn iter_pours(&self) -> ValidPourIter<'_, Self> {
         ValidPourIter::new(self)
     }
+}
+
+/// Types representing [GameState]s that a [Solution](crate::solution::Solution) can be found for
+pub trait SolvableGameState: GameState + Eq + Hash + Ord + Send + 'static {
+    /// Returns whether this SolvableGameState is solved
+    ///
+    /// What precisely "solved" means depends on the particular type of SolvableGameState.
+    /// When this is true for some state, the solving algorithm will stop and declare it has found a solution.
+    fn is_solved(&self) -> bool;
 }

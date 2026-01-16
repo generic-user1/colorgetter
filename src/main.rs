@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use colorgetter::{
-    gamestate::{load_partial_gamestate_from_file, GameStateLoadError},
+    gamestate::{load_partial_gamestate_from_file, GameStateLoadError, KnownGameState},
     ui::{Ui, UiCreationError, UiRunError}
 };
 
@@ -22,7 +22,7 @@ fn main() -> Result<(), AppError> {
     // TODO: for now, we just take the partial gamestate out of the setup menu, attempt to directly convert it to a gamestate,
     // and panic if that fails. This is useful temporarily so that we can test the setup/save menus on partial gamestates without having
     // to properly implement solving partial states, but will need to be fixed soon
-    let gs = pgs.try_into().expect("Couldn't directly convert from PartialGameState to GameState. This error will likely be fixed in the future.");
+    let gs = KnownGameState::try_from(pgs).expect("Couldn't directly convert from PartialGameState to GameState. This error will likely be fixed in the future.");
 
     let solution = ui.solution_finding_loop(&gs)?;
     if let Some(solution) = solution {

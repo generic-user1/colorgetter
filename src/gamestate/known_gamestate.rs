@@ -1,5 +1,5 @@
 use super::*;
-use crate::bottle::KnownBottle;
+use crate::{bottle::KnownBottle, gamestate::SolvableGameState};
 use heapless::{CapacityError, Vec};
 use serde::{Deserialize, Serialize};
 use std::hash::Hash;
@@ -10,21 +10,6 @@ use std::hash::Hash;
 #[derive(Debug, Clone, Eq, Deserialize, Serialize)]
 pub struct KnownGameState<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> {
     pub bottles: Vec<KnownBottle<B_MAX_CAP>, MAX_BCOUNT>
-}
-
-impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> KnownGameState<MAX_BCOUNT, B_MAX_CAP> {
-    /// Returns whether this KnownGameState represents a finished game
-    ///
-    /// The game is finished when all bottles are either completely empty or
-    /// completely full of a single color
-    pub fn is_finished(&self) -> bool {
-        for bottle in &self.bottles {
-            if !(bottle.is_in_final_state() || bottle.get_content().is_empty()) {
-                return false;
-            }
-        }
-        true
-    }
 }
 
 impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> Ord
@@ -53,7 +38,7 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> PartialEq
     for KnownGameState<MAX_BCOUNT, B_MAX_CAP>
 {
     fn eq(&self, other: &Self) -> bool {
-        if self.is_finished() != other.is_finished() {
+        if self.is_solved() != other.is_solved() {
             return false;
         }
 
@@ -71,7 +56,7 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> Hash
 {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         // Include whether we're finished
-        self.is_finished().hash(state);
+        self.is_solved().hash(state);
 
         // Hash for this KnownGameState is the hashes of all bottles in the gamestate in some standard order
         // To accomplish this, we first put the bottles of this state into standard order
@@ -132,5 +117,22 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState
 
     fn get_mut_bottles(&mut self) -> &mut [Self::BottleT] {
         &mut self.bottles
+    }
+}
+
+impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SolvableGameState
+    for KnownGameState<MAX_BCOUNT, B_MAX_CAP>
+{
+    /// Returns whether this GameState is solved
+    ///
+    /// For [KnownGameState], "solved" means a finished game;
+    /// all bottles are either completely empty or completely full of a single color
+    fn is_solved(&self) -> bool {
+        for bottle in &self.bottles {
+            if !(bottle.is_in_final_state() || bottle.get_content().is_empty()) {
+                return false;
+            }
+        }
+        true
     }
 }

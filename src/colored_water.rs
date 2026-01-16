@@ -14,7 +14,7 @@ pub struct ColoredWaterRun {
     pub size: usize
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
 /// One unit of colored water, with a specific color
 pub enum ColoredWaterUnit {
     Red = 0,

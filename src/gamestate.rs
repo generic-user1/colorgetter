@@ -7,7 +7,7 @@ mod partial_gamestate;
 pub use partial_gamestate::PartialGameState;
 
 mod gamestate_trait;
-pub use gamestate_trait::GameState;
+pub use gamestate_trait::{GameState, SolvableGameState};
 
 mod pour_def;
 pub use pour_def::{Pour, PourError, ValidPour, ValidPourIter};

@@ -1,11 +1,14 @@
 use super::*;
-use crate::bottle::{PartialBottle, PartialBottleConversionError};
+use crate::{
+    bottle::{Bottle, PartialBottle, PartialBottleConversionError},
+    colored_water::PartialColoredWaterUnit
+};
 use heapless::{CapacityError, Vec};
 use serde::{Deserialize, Serialize};
 
 /// The state a particular game is in, including [PartialBottle]s
 /// instead of regular [KnownBottle](crate::bottle::KnownBottle)s
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PartialGameState<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> {
     pub bottles: Vec<PartialBottle<B_MAX_CAP>, MAX_BCOUNT>
 }
@@ -60,5 +63,28 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState
 
     fn get_mut_bottles(&mut self) -> &mut [Self::BottleT] {
         &mut self.bottles
+    }
+}
+
+impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SolvableGameState
+    for PartialGameState<MAX_BCOUNT, B_MAX_CAP>
+{
+    /// Returns whether this GameState is solved
+    ///
+    /// For [PartialGameState], "solved" means that at least one bottle has an unknown color at the top,
+    /// or that there are no unknown colors at all (i.e. the [PartialGameState] can be converted into a [KnownGameState])
+    fn is_solved(&self) -> bool {
+        let mut found_any_unknown = false;
+        for bottle in &self.bottles {
+            match bottle.get_top_color() {
+                Some(PartialColoredWaterUnit::Color(_)) => (),
+                Some(PartialColoredWaterUnit::UnknownColor) => return true,
+                None => ()
+            }
+            if bottle.get_unknown_count() != 0 {
+                found_any_unknown = true;
+            }
+        }
+        !found_any_unknown
     }
 }

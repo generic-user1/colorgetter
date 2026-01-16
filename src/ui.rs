@@ -1,4 +1,4 @@
-//! Implementation of a user interface for setting up [KnownGameState]s/[PartialGameState]s
+//! Implementation of a user interface for setting up [KnownGameState](crate::gamestate::KnownGameState)s/[PartialGameState]s
 
 use std::{
     io::{self, stdout, Write},
@@ -21,7 +21,7 @@ use crossterm::{
 };
 
 use crate::{
-    gamestate::{KnownGameState, PartialGameState},
+    gamestate::{PartialGameState, SolvableGameState},
     solution::Solution
 };
 
@@ -91,14 +91,14 @@ impl Ui {
         }
     }
 
-    /// Runs a loop that handles display and input while the given [KnownGameState] is solved
+    /// Runs a loop that handles display and input while the given [SolvableGameState] is solved
     /// in the background.
     ///
     /// Returns an [`Option<Solution>`]; if [None], no solution could be found.
-    pub fn solution_finding_loop<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
+    pub fn solution_finding_loop<'a, GamestateT: SolvableGameState>(
         &self,
-        gamestate_to_solve: &'a KnownGameState<MAX_BCOUNT, B_MAX_CAP>
-    ) -> Result<Option<Solution<'a, MAX_BCOUNT, B_MAX_CAP>>, UiRunError> {
+        gamestate_to_solve: &'a GamestateT
+    ) -> Result<Option<Solution<'a, GamestateT>>, UiRunError> {
         let mut state = WaitScreenState::new(gamestate_to_solve);
         let mut out = stdout();
         loop {
@@ -130,9 +130,9 @@ impl Ui {
     }
 
     /// Runs a loop that displays the viewer for a [Solution]
-    pub fn solution_viewer_loop<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
+    pub fn solution_viewer_loop<GamestateT: SolvableGameState>(
         &self,
-        solution: &Solution<MAX_BCOUNT, B_MAX_CAP>
+        solution: &Solution<GamestateT>
     ) -> Result<(), UiRunError> {
         let mut state = SolutionViewerState::new(solution);
         loop {

@@ -23,7 +23,7 @@ use super::{
 ///
 /// For performance reasons, PartialBottles must not require heap allocations. To this end, each bottle has a `MAX_CAP`; this is
 /// the maximum capacity that particular bottle can have. Their actual capacity can be any value at or below `MAX_CAP`.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Deserialize, Serialize)]
 #[serde(try_from = "UncheckedPartialBottle<MAX_CAP>")]
 pub struct PartialBottle<const MAX_CAP: usize> {
     capacity: usize,
