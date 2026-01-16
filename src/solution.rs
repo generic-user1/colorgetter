@@ -9,7 +9,7 @@ use std::{
 
 use bimap::BiHashMap;
 
-use crate::gamestate::{KnownGameState, Pour, PourError};
+use crate::gamestate::{GameState, KnownGameState, Pour, PourError};
 
 type ThreadOutput = Arc<RwLock<Option<VecDeque<Pour>>>>;
 

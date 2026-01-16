@@ -2,7 +2,7 @@
 
 use crate::{
     bottle::{Bottle, BottleSampleResult},
-    gamestate::Pour
+    gamestate::{Pour, ValidPourIter}
 };
 use crossterm::{
     cursor::{MoveDown, MoveLeft, MoveRight},
@@ -17,7 +17,7 @@ use std::{
 };
 
 /// Types representing game states; collections of [Bottle]s that can be poured between
-pub trait GameState {
+pub trait GameState: Clone {
     type BottleT: Bottle;
 
     /// Gets the bottles of this game state as a slice
@@ -231,5 +231,10 @@ pub trait GameState {
         }
 
         Ok(())
+    }
+
+    /// Returns an iterator over all [ValidPour](crate::gamestate::ValidPour)s you could apply to this GameState
+    fn iter_pours(&self) -> ValidPourIter<'_, Self> {
+        ValidPourIter::new(self)
     }
 }

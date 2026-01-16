@@ -25,11 +25,6 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> KnownGameState<MAX_BCOUNT,
         }
         true
     }
-
-    /// Returns an iterator over all [ValidPour](crate::gamestate::ValidPour)s you could apply to this KnownGameState
-    pub fn iter_pours(&self) -> ValidPourIter<'_, Self> {
-        ValidPourIter::new(self)
-    }
 }
 
 impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> Ord
