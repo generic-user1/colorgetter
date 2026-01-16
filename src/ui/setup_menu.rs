@@ -23,7 +23,6 @@ use std::{
 /// Represents the state of the setup menu
 pub(super) struct SetupMenuState<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> {
     pub gs: PartialGameState<MAX_BCOUNT, B_MAX_CAP>,
-    pub should_exit: bool,
     c_state: SetupCursorState,
     file_saved_path: Option<Result<String, SaveError>>
 }
@@ -61,7 +60,6 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT,
             gs: initial_gamestate.unwrap_or_else(|| PartialGameState {
                 bottles: heapless::Vec::new()
             }),
-            should_exit: false,
             file_saved_path: None
         }
     }
@@ -133,7 +131,8 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT,
         Ok(())
     }
 
-    pub fn handle_event(&mut self, event: Event) -> Result<(), UiRunError> {
+    /// Returns true if handling this event means we should exit, false if we shouldn't exit and should keep going instead.
+    pub fn handle_event(&mut self, event: Event) -> Result<bool, UiRunError> {
         if let Event::Key(event) = event {
             if event.kind == KeyEventKind::Press && self.file_saved_path.is_some() {
                 self.file_saved_path = None;
@@ -346,7 +345,7 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT,
                         self.c_state = SetupCursorState::Solve;
                     }
                     SetupCursorState::Solve => {
-                        self.should_exit = true;
+                        return Ok(true);
                     }
                     SetupCursorState::Save => {
                         self.file_saved_path = save_menu_loop(&self.gs)?;
@@ -381,6 +380,6 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT,
             }
         }
 
-        Ok(())
+        Ok(false)
     }
 }

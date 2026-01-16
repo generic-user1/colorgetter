@@ -94,8 +94,8 @@ impl Ui {
             out.queue(Clear(ClearType::All))?.queue(MoveTo(0, 0))?;
             state.queue_display(&mut out)?;
             out.flush()?;
-            state.handle_event(event::read()?)?;
-            if state.should_exit {
+            let should_exit = state.handle_event(event::read()?)?;
+            if should_exit {
                 break Ok(state.gs);
             }
         }
@@ -119,11 +119,13 @@ impl Ui {
 
             // wait to handle an event if we're finished;
             // if we're not finished, handle events only if there are any events to be handled
-            if is_finished || event::poll(Duration::from_millis(16))? {
-                state.handle_event(event::read()?)?;
-            }
+            let should_exit = if is_finished || event::poll(Duration::from_millis(16))? {
+                state.handle_event(event::read()?)?
+            } else {
+                false
+            };
 
-            if state.should_exit {
+            if should_exit {
                 match state.get_solution() {
                     Ok(solution) => return Ok(Some(solution)),
                     Err(e) => match e {
@@ -148,8 +150,8 @@ impl Ui {
             out.queue(Clear(ClearType::All))?.queue(MoveTo(0, 0))?;
             state.queue_display(&mut out)?;
             out.flush()?;
-            state.handle_event(event::read()?)?;
-            if state.should_exit {
+            let should_exit = state.handle_event(event::read()?)?;
+            if should_exit {
                 break Ok(());
             }
         }

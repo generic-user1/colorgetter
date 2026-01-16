@@ -23,8 +23,7 @@ pub(super) struct WaitScreenState<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: 
     gamestate_to_solve: &'a KnownGameState<MAX_BCOUNT, B_MAX_CAP>,
     solver_thread_handle: Option<JoinHandle<Option<VecDeque<Pour>>>>,
     pours: Option<VecDeque<Pour>>,
-    search_end_time: Arc<RwLock<Option<Instant>>>,
-    pub should_exit: bool
+    search_end_time: Arc<RwLock<Option<Instant>>>
 }
 
 impl<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>
@@ -48,8 +47,7 @@ impl<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>
             gamestate_to_solve,
             solver_thread_handle: Some(handle),
             pours: None,
-            search_end_time,
-            should_exit: false
+            search_end_time
         }
     }
 
@@ -135,7 +133,8 @@ impl<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>
         Ok(())
     }
 
-    pub fn handle_event(&mut self, event: Event) -> Result<(), UiRunError> {
+    /// Returns true if handling this event means we should exit, false if we shouldn't exit and should keep going instead.
+    pub fn handle_event(&mut self, event: Event) -> Result<bool, UiRunError> {
         if let Event::Key(event) = event {
             match event {
                 KeyEvent {
@@ -148,13 +147,13 @@ impl<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>
                     if k == KeyEventKind::Press || k == KeyEventKind::Repeat =>
                 {
                     if self.check_finished() {
-                        self.should_exit = true;
+                        return Ok(true);
                     }
                 }
                 _ => ()
             }
         }
-        Ok(())
+        Ok(false)
     }
 }
 

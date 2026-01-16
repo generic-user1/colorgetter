@@ -23,8 +23,7 @@ pub(super) struct SolutionViewerState<'a, 'b, const MAX_BCOUNT: usize, const B_M
     ///
     /// Optional because displaying just the initial GameState requires no pours, but index 0 refers to the first pour.
     /// Private because otherwise, we can't guarantee that this index points to a valid pour within the solution
-    current_pour_idx: Option<usize>,
-    pub should_exit: bool
+    current_pour_idx: Option<usize>
 }
 
 impl<'a, 'b, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>
@@ -35,8 +34,7 @@ impl<'a, 'b, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>
     ) -> SolutionViewerState<'a, 'b, MAX_BCOUNT, B_MAX_CAP> {
         SolutionViewerState {
             solution,
-            current_pour_idx: None,
-            should_exit: false
+            current_pour_idx: None
         }
     }
 
@@ -63,7 +61,8 @@ impl<'a, 'b, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>
         Ok(())
     }
 
-    pub fn handle_event(&mut self, event: Event) -> Result<(), UiRunError> {
+    /// Returns true if handling this event means we should exit, false if we shouldn't exit and should keep going instead.
+    pub fn handle_event(&mut self, event: Event) -> Result<bool, UiRunError> {
         if let Event::Key(event) = event {
             match event {
                 KeyEvent {
@@ -86,7 +85,7 @@ impl<'a, 'b, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>
                 } if k == KeyEventKind::Press || k == KeyEventKind::Repeat => {
                     let inc_result = self.try_inc_current_pour_idx();
                     if inc_result.is_err() {
-                        self.should_exit = true;
+                        return Ok(true);
                     }
                 }
                 KeyEvent {
@@ -96,13 +95,13 @@ impl<'a, 'b, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>
                 } if k == KeyEventKind::Press || k == KeyEventKind::Repeat => {
                     let inc_result = self.try_inc_current_pour_idx();
                     if inc_result.is_err() {
-                        self.should_exit = true;
+                        return Ok(true);
                     }
                 }
                 _ => ()
             }
         }
-        Ok(())
+        Ok(false)
     }
 
     /// Returns the currently displayed [GameState] and, if it exists, the [Pour] used to get to the

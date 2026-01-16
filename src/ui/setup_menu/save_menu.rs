@@ -26,16 +26,14 @@ pub(super) fn save_menu_loop<T: Serialize>(
         out.queue(Clear(ClearType::All))?.queue(MoveTo(0, 0))?;
         state.queue_display(&mut out)?;
         out.flush()?;
-        let exit_reason = state.handle_event(event::read()?)?;
-        if let Some(exit_reason) = exit_reason {
-            match exit_reason {
-                SaveMenuExitReason::SaveAndExit => {
-                    break Ok(Some(state.save_gamestate()));
-                }
-                SaveMenuExitReason::Exit => {
-                    break Ok(None);
-                }
+        match state.handle_event(event::read()?)? {
+            SaveMenuEventResult::SaveAndExit => {
+                break Ok(Some(state.save_gamestate()));
             }
+            SaveMenuEventResult::Exit => {
+                break Ok(None);
+            }
+            SaveMenuEventResult::Nothing => ()
         }
     }
 }
@@ -129,7 +127,7 @@ impl<'a, T: Serialize> SaveMenuState<'a, T> {
         Ok(())
     }
 
-    pub fn handle_event(&mut self, event: Event) -> Result<Option<SaveMenuExitReason>, UiRunError> {
+    pub fn handle_event(&mut self, event: Event) -> Result<SaveMenuEventResult, UiRunError> {
         if let Event::Key(event) = event {
             match event {
                 KeyEvent {
@@ -216,7 +214,7 @@ impl<'a, T: Serialize> SaveMenuState<'a, T> {
                 } if k == KeyEventKind::Press || k == KeyEventKind::Repeat => match self.c_state {
                     SaveCursorState::FileName(_) => self.c_state = SaveCursorState::Confirm,
                     SaveCursorState::Confirm => {
-                        return Ok(Some(SaveMenuExitReason::SaveAndExit));
+                        return Ok(SaveMenuEventResult::SaveAndExit);
                     }
                 },
 
@@ -225,7 +223,7 @@ impl<'a, T: Serialize> SaveMenuState<'a, T> {
                     kind: k,
                     ..
                 } if k == KeyEventKind::Press || k == KeyEventKind::Repeat => {
-                    return Ok(Some(SaveMenuExitReason::Exit));
+                    return Ok(SaveMenuEventResult::Exit);
                 }
 
                 KeyEvent {
@@ -275,7 +273,7 @@ impl<'a, T: Serialize> SaveMenuState<'a, T> {
             }
         }
 
-        Ok(None)
+        Ok(SaveMenuEventResult::Nothing)
     }
 
     /// Attempts to save current gamestate. Note that this will refuse to write to a file that already exists.
@@ -289,13 +287,16 @@ impl<'a, T: Serialize> SaveMenuState<'a, T> {
     }
 }
 
-/// Reasons to exit the save menu
-pub(crate) enum SaveMenuExitReason {
+/// What to do after handling an event in the save menu
+pub(crate) enum SaveMenuEventResult {
     /// Save file, then exit menu
     SaveAndExit,
 
     /// Exit menu without saving
-    Exit
+    Exit,
+
+    /// Do nothing
+    Nothing
 }
 
 /// Reasons the save menu may fail
