@@ -57,4 +57,8 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState
     fn get_bottles(&self) -> &[Self::BottleT] {
         &self.bottles
     }
+
+    fn get_mut_bottles(&mut self) -> &mut [Self::BottleT] {
+        &mut self.bottles
+    }
 }

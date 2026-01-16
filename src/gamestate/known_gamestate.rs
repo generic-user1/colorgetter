@@ -27,7 +27,7 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> KnownGameState<MAX_BCOUNT,
     }
 
     /// Returns an iterator over all [ValidPour](crate::gamestate::ValidPour)s you could apply to this KnownGameState
-    pub fn iter_pours(&self) -> ValidPourIter<'_, MAX_BCOUNT, B_MAX_CAP> {
+    pub fn iter_pours(&self) -> ValidPourIter<'_, Self> {
         ValidPourIter::new(self)
     }
 }
@@ -133,5 +133,9 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState
 
     fn get_bottles(&self) -> &[Self::BottleT] {
         &self.bottles
+    }
+
+    fn get_mut_bottles(&mut self) -> &mut [Self::BottleT] {
+        &mut self.bottles
     }
 }

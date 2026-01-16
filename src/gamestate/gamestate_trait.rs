@@ -23,6 +23,9 @@ pub trait GameState {
     /// Gets the bottles of this game state as a slice
     fn get_bottles(&self) -> &[Self::BottleT];
 
+    /// Get the bottles of this game state as a mutable slice
+    fn get_mut_bottles(&mut self) -> &mut [Self::BottleT];
+
     /// Queues the display of this entire game state for the given `ostream` (typically [std::io::stdout])
     ///
     /// `selected`, if provided, specifies a [ColoredWaterUnit](crate::colored_water::ColoredWaterUnit) to display as being selected.
