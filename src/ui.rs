@@ -21,7 +21,9 @@ use crossterm::{
 };
 
 use crate::{
-    gamestate::{PartialGameState, SolvableGameState},
+    bottle::{Bottle, BottleSampleResult},
+    colored_water::PartialColoredWaterUnit,
+    gamestate::{GameState, KnownGameState, PartialGameState, SolvableGameState},
     solution::Solution
 };
 
@@ -87,6 +89,82 @@ impl Ui {
             let should_exit = state.handle_event(event::read()?)?;
             if should_exit {
                 break Ok(state.gs);
+            }
+        }
+    }
+
+    /// Runs a loop that progressively demystifies a [PartialGameState] into a [KnownGameState]
+    /// that can be solved properly.
+    pub fn demystifier_loop<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
+        &self,
+        initial_gs: PartialGameState<MAX_BCOUNT, B_MAX_CAP>
+    ) -> Result<DemystificationResult<MAX_BCOUNT, B_MAX_CAP>, UiRunError> {
+        //this will be the gamestate the user actually interacts with
+        let mut working_gs = initial_gs.clone();
+
+        //this will be the gamestate that tracks what to reset to if we need to reset. we need it to be mutable
+        //so we can update the unknown colors as they're revealed
+        let mut initial_gs = initial_gs;
+
+        loop {
+            //first thing we do: if the working state can be converted into a known state, do the conversion and return.
+            if let Ok(working_state_as_known) = KnownGameState::try_from(working_gs.clone()) {
+                return Ok(DemystificationResult {
+                    initial_state: initial_gs.try_into().expect("working state converted from partial to known, but initial state couldn't convert!"),
+                current_state: working_state_as_known
+            });
+            }
+
+            //try to find a solution to this PartialGameState - this will be a partial state with at least one unknown color on top
+            let found_solution = self.solution_finding_loop(&working_gs)?;
+            if let Some(found_solution) = found_solution {
+                //TODO: specialize the message shown to say something other than "found solution"
+                self.solution_viewer_loop(&found_solution)?;
+                let pours = found_solution.take_pours();
+                for pour in pours {
+                    working_gs = pour
+                        .try_apply(&working_gs)
+                        .expect("invalid pour from solution");
+                }
+
+                //TODO: find some way to limit editing to only the revealed bottle
+                //so that our assumption about the correspondance between known colors in working_gs and unknown colors initial_gs always holds true,
+                //and to make entering the new info more convinient
+                //for now, this only works if the user chooses only to update unknown colors
+                working_gs = self.setup_menu_loop(Some(working_gs))?;
+
+                //identify unknown colors in initial_gs that are known in working_gs, then update initial_gs accordingly
+                for (bottle_idx, initial_bottle) in
+                    initial_gs.get_mut_bottles().iter_mut().enumerate()
+                {
+                    let working_bottle = working_gs.get_bottles().get(bottle_idx)
+                .expect("bottle in initial_gs had no corresponding bottle in working_gs; this happens when number of working_gs bottles is modified unexpectedly");
+
+                    for color_idx in (0..initial_bottle.capacity()).rev() {
+                        let initial_bottle_sample_result = initial_bottle.sample_at(color_idx);
+
+                        if let BottleSampleResult::KnownColor(color) =
+                            working_bottle.sample_at(color_idx)
+                        {
+                            if initial_bottle_sample_result == BottleSampleResult::UnknownColor {
+                                initial_bottle
+                                .try_set_color(
+                                    color_idx,
+                                    Some(PartialColoredWaterUnit::Color(color))
+                                )
+                                .expect(
+                                    "Failed to update initial bottle with working bottle's content"
+                                );
+                            }
+                        }
+                    }
+                }
+            } else {
+                // no solution to the partial state could be found - we can't get anywhere useful from here
+                // therefore, we must reset to our initial state and try again
+                // TODO: have some indication to the user that this is what's happening instead of just resetting
+                // without a word
+                working_gs = initial_gs.clone();
             }
         }
     }
@@ -204,4 +282,15 @@ impl From<io::Error> for UiRunError {
     fn from(value: io::Error) -> Self {
         UiRunError::IOError(value)
     }
+}
+
+/// Return value from successful demystification
+pub struct DemystificationResult<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> {
+    /// The original [PartialGameState] that was demystified, with all unknown colors replaced
+    /// with their now known values. If the game is reset, this will be the state reset to.
+    pub initial_state: KnownGameState<MAX_BCOUNT, B_MAX_CAP>,
+
+    /// The current state after the demystification process. This may or may not be solvable, as demystification
+    /// shuffles colors around and can put the game into an unwinnable state.
+    pub current_state: KnownGameState<MAX_BCOUNT, B_MAX_CAP>
 }
