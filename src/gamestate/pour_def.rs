@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use super::*;
-use crate::bottle::{KnownBottle, PourOutError};
+use crate::bottle::{Bottle, KnownBottle, PourOutError};
 
 /// The operation of pouring content from one [KnownBottle] into another within the same [KnownGameState].
 ///

@@ -168,125 +168,6 @@ impl<const MAX_CAP: usize> KnownBottle<MAX_CAP> {
         })
     }
 
-    /// Attempt to pour a [ColoredWaterRun] into this bottle.
-    ///
-    /// If this is successful, will return a new [ColoredWaterRun] representing the portion of
-    /// the given `content_to_pour` that wouldn't fit into this bottle. The `size` of this returned [ColoredWaterRun]
-    /// may be 0; this indicates that the entirity of `content_to_pour` fit into this bottle.
-    ///
-    /// If this is unsuccessful (i.e., none of the `content_to_pour` could fit into this bottle/the colors are mismatched),
-    /// an [Err] is returned with an appropriate [PourInError] variant. No change is made to this bottle in this case.
-    pub fn try_pour_in(
-        &mut self,
-        content_to_pour: ColoredWaterRun
-    ) -> Result<ColoredWaterRun, PourInError> {
-        if let Some(top_color) = self
-            .get_top_color()
-            .map(|c| ColoredWaterUnit::try_from(c).unwrap())
-        {
-            if top_color != content_to_pour.color {
-                return Err(PourInError::MismatchedColors);
-            }
-        }
-
-        // Add ColoredWaterUnits to this Bottle for each unit in content_to_pour
-        let mut count_poured = 0;
-        for _ in 0..content_to_pour.size {
-            // If we are at this bottle's capacity, stop pouring and record how many units were poured.
-            if self.content.len() >= self.capacity {
-                break;
-            }
-            // If we are not yet at this bottle's capacity, pour one additional unit.
-            self.content.push(content_to_pour.color).unwrap();
-            count_poured += 1;
-        }
-
-        if count_poured == 0 {
-            Err(PourInError::AlreadyFull)
-        } else {
-            Ok(ColoredWaterRun {
-                color: content_to_pour.color,
-                size: content_to_pour.size.saturating_sub(count_poured)
-            })
-        }
-    }
-
-    /// Determine if running [KnownBottle::try_pour_in] would succeed given the current content of this bottle
-    /// and the provided `content_to_pour`, but don't actually modify the content of this bottle.
-    ///
-    /// Return value is the same as the return value of [KnownBottle::try_pour_in] would be if called on this same
-    /// bottle with the same `content_to_pour`
-    pub fn test_pour_in(
-        &self,
-        content_to_pour: ColoredWaterRun
-    ) -> Result<ColoredWaterRun, PourInError> {
-        if let Some(top_color) = self
-            .get_top_color()
-            .map(|c| ColoredWaterUnit::try_from(c).unwrap())
-        {
-            if top_color != content_to_pour.color {
-                return Err(PourInError::MismatchedColors);
-            }
-        }
-
-        let empty_space = self.capacity - self.content.len();
-        if empty_space == 0 {
-            return Err(PourInError::AlreadyFull);
-        }
-
-        // we have verified this pour would work, now calculate the number
-        // of units in content_to_pour that we can't accept and return
-        Ok(ColoredWaterRun {
-            color: content_to_pour.color,
-            size: content_to_pour.size.saturating_sub(empty_space)
-        })
-    }
-
-    /// Attempt to pour a [ColoredWaterRun] out of this bottle.
-    ///
-    /// If this is successful, will return `Ok(())`.
-    ///
-    /// If this is unsuccessful (i.e., this bottle is empty/the destination bottle couldn't accept the pour),
-    /// an [Err] is returned with an appropriate [PourOutError] variant. No change is made to either this bottle
-    /// or the destination bottle in this case.
-    pub fn try_pour_out<const OTHER_MAX_CAP: usize>(
-        &mut self,
-        destination: &mut KnownBottle<OTHER_MAX_CAP>
-    ) -> Result<(), PourOutError> {
-        if let Some(run_to_pour) = self.get_top_color_run().map(|c| c.try_into().unwrap()) {
-            let remaining_part_of_run = destination.try_pour_in(run_to_pour)?;
-
-            //Given how many units we tried to pour and how many units couldn't be poured, find the number of units that were actually poured
-            let units_poured = run_to_pour.size - remaining_part_of_run.size;
-
-            //Remove that number of units
-            self.content.truncate(self.content.len() - units_poured);
-
-            Ok(())
-        } else {
-            Err(PourOutError::Empty)
-        }
-    }
-
-    /// Determine if running [KnownBottle::try_pour_out] would succeed given the current content of this bottle
-    /// and the provided `destination` bottle, but don't actually modify the content of either bottle.
-    ///
-    /// Return value is the same as the return value of [KnownBottle::try_pour_out] would be if called on this same
-    /// bottle with the same `destination` bottle.
-    pub fn test_pour_out<const OTHER_MAX_CAP: usize>(
-        &self,
-        destination: &KnownBottle<OTHER_MAX_CAP>
-    ) -> Result<(), PourOutError> {
-        if let Some(run_to_pour) = self.get_top_color_run().map(|c| c.try_into().unwrap()) {
-            match destination.test_pour_in(run_to_pour) {
-                Ok(_) => Ok(()),
-                Err(e) => Err(e.into())
-            }
-        } else {
-            Err(PourOutError::Empty)
-        }
-    }
-
     /// Determine if this KnownBottle is in its final state
     ///
     /// "Final state" in this context means the bottle is in its final possible state:
@@ -374,6 +255,93 @@ impl<const MAX_CAP: usize> Bottle for KnownBottle<MAX_CAP> {
         //either we have content and the answer is one minus our length,
         //or we don't have content and we want to return None
         self.get_content().len().checked_sub(1)
+    }
+
+    fn try_pour_in(
+        &mut self,
+        content_to_pour: ColoredWaterRun
+    ) -> Result<ColoredWaterRun, PourInError> {
+        if let Some(top_color) = self
+            .get_top_color()
+            .map(|c| ColoredWaterUnit::try_from(c).unwrap())
+        {
+            if top_color != content_to_pour.color {
+                return Err(PourInError::MismatchedColors);
+            }
+        }
+
+        // Add ColoredWaterUnits to this Bottle for each unit in content_to_pour
+        let mut count_poured = 0;
+        for _ in 0..content_to_pour.size {
+            // If we are at this bottle's capacity, stop pouring and record how many units were poured.
+            if self.content.len() >= self.capacity {
+                break;
+            }
+            // If we are not yet at this bottle's capacity, pour one additional unit.
+            self.content.push(content_to_pour.color).unwrap();
+            count_poured += 1;
+        }
+
+        if count_poured == 0 {
+            Err(PourInError::AlreadyFull)
+        } else {
+            Ok(ColoredWaterRun {
+                color: content_to_pour.color,
+                size: content_to_pour.size.saturating_sub(count_poured)
+            })
+        }
+    }
+
+    fn test_pour_in(
+        &self,
+        content_to_pour: ColoredWaterRun
+    ) -> Result<ColoredWaterRun, PourInError> {
+        if let Some(top_color) = self
+            .get_top_color()
+            .map(|c| ColoredWaterUnit::try_from(c).unwrap())
+        {
+            if top_color != content_to_pour.color {
+                return Err(PourInError::MismatchedColors);
+            }
+        }
+
+        let empty_space = self.capacity - self.content.len();
+        if empty_space == 0 {
+            return Err(PourInError::AlreadyFull);
+        }
+
+        // we have verified this pour would work, now calculate the number
+        // of units in content_to_pour that we can't accept and return
+        Ok(ColoredWaterRun {
+            color: content_to_pour.color,
+            size: content_to_pour.size.saturating_sub(empty_space)
+        })
+    }
+
+    fn try_pour_out<T: Bottle>(&mut self, destination: &mut T) -> Result<(), PourOutError> {
+        //since this is a KnownBottle, we know that our top color run is not unknown, so converting with try_into().unwrap() is fine
+        if let Some(run_to_pour) = self.get_top_color_run().map(|c| c.try_into().unwrap()) {
+            let remaining_part_of_run = destination.try_pour_in(run_to_pour)?;
+
+            //Given how many units we tried to pour and how many units couldn't be poured, find the number of units that were actually poured
+            let units_poured = run_to_pour.size - remaining_part_of_run.size;
+
+            //Remove that number of units
+            self.content.truncate(self.content.len() - units_poured);
+
+            Ok(())
+        } else {
+            Err(PourOutError::Empty)
+        }
+    }
+
+    fn test_pour_out<T: Bottle>(&self, destination: &T) -> Result<(), PourOutError> {
+        //since this is a KnownBottle, we know that our top color run is not unknown, so converting with try_into().unwrap() is fine
+        if let Some(run_to_pour) = self.get_top_color_run().map(|c| c.try_into().unwrap()) {
+            Ok(destination.test_pour_in(run_to_pour).map(|_| ())?)
+        } else {
+            Err(PourOutError::Empty)
+        }
     }
 }
 

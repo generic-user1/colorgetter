@@ -1,6 +1,9 @@
 //! Definition of the Bottle trait
 
-use crate::colored_water::{ColoredWaterUnit, PartialColoredWaterRun, PartialColoredWaterUnit};
+use crate::bottle::{PourInError, PourOutError};
+use crate::colored_water::{
+    ColoredWaterRun, ColoredWaterUnit, PartialColoredWaterRun, PartialColoredWaterUnit
+};
 
 ///Reasons that setting a [PartialColoredWaterUnit](crate::colored_water::PartialColoredWaterUnit) within a [Bottle] may fail.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -193,4 +196,45 @@ pub trait Bottle {
     fn sample_known_color_at(&self, idx: usize) -> Option<ColoredWaterUnit> {
         self.sample_at(idx).try_into().ok()
     }
+
+    /// Attempt to pour a [ColoredWaterRun] into this bottle.
+    ///
+    /// If this is successful, will return a new [ColoredWaterRun] representing the portion of
+    /// the given `content_to_pour` that wouldn't fit into this bottle. The `size` of this returned [ColoredWaterRun]
+    /// may be 0; this indicates that the entirity of `content_to_pour` fit into this bottle.
+    ///
+    /// If this is unsuccessful, an [Err] is returned with an appropriate [PourInError] variant.
+    /// No change is made to this bottle in this case.
+    ///
+    /// Note that this only works with [ColoredWaterRun], not [PartialColoredWaterRun] - unknown colors cannot be poured,
+    /// because it's normally not possible to know whether their color matches the destination's.
+    fn try_pour_in(
+        &mut self,
+        content_to_pour: ColoredWaterRun
+    ) -> Result<ColoredWaterRun, PourInError>;
+
+    /// Determine if running [Bottle::try_pour_in] would succeed given the current content of this bottle
+    /// and the provided `content_to_pour`, but don't actually modify the content of this bottle.
+    ///
+    /// Return value is the same as the return value of [Bottle::try_pour_in] would be if called on this same
+    /// bottle with the same `content_to_pour`
+    fn test_pour_in(
+        &self,
+        content_to_pour: ColoredWaterRun
+    ) -> Result<ColoredWaterRun, PourInError>;
+
+    /// Attempt to pour a [ColoredWaterRun] out of this bottle.
+    ///
+    /// If this is successful, will return `Ok(())`.
+    ///
+    /// If this is unsuccessful, an [Err] is returned with an appropriate [PourOutError] variant.
+    /// No change is made to either this bottle or the destination bottle in this case.
+    fn try_pour_out<T: Bottle>(&mut self, destination: &mut T) -> Result<(), PourOutError>;
+
+    /// Determine if running [Bottle::try_pour_out] would succeed given the current content of this bottle
+    /// and the provided `destination` bottle, but don't actually modify the content of either bottle.
+    ///
+    /// Return value is the same as the return value of [Bottle::try_pour_out] would be if called on this same
+    /// bottle with the same `destination` bottle.
+    fn test_pour_out<T: Bottle>(&self, destination: &T) -> Result<(), PourOutError>;
 }

@@ -1,12 +1,13 @@
 //! Implementation of a PartialBottle; a [Bottle] with partially unknown colors.
 
-use crate::colored_water::{ColoredWaterUnit, PartialColoredWaterUnit};
+use crate::colored_water::{ColoredWaterRun, ColoredWaterUnit, PartialColoredWaterUnit};
 use heapless::Vec;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
 use super::{
-    Bottle, BottleCapacityError, BottleMaxCapError, BottleSampleResult, ColorSetError, KnownBottle
+    Bottle, BottleCapacityError, BottleMaxCapError, BottleSampleResult, ColorSetError, KnownBottle,
+    PourInError, PourOutError
 };
 
 /// One Bottle that may contain [ColoredWaterUnit]s, but where the specific color of some
@@ -387,6 +388,107 @@ impl<const MAX_CAP: usize> Bottle for PartialBottle<MAX_CAP> {
         let overall_content_len = self.get_unknown_count() + self.get_known_content().len();
         //then, our answer is our overall content length minus 1, or None if our overall length was zero.
         overall_content_len.checked_sub(1)
+    }
+
+    fn try_pour_in(
+        &mut self,
+        content_to_pour: ColoredWaterRun
+    ) -> Result<ColoredWaterRun, PourInError> {
+        match self.get_top_color() {
+            Some(PartialColoredWaterUnit::Color(c)) => {
+                if c != content_to_pour.color {
+                    return Err(PourInError::MismatchedColors);
+                }
+            }
+            Some(PartialColoredWaterUnit::UnknownColor) => {
+                return Err(PourInError::DestUnknownColor);
+            }
+            None => ()
+        }
+
+        // Add ColoredWaterUnits to this Bottle for each unit in content_to_pour
+        let mut count_poured = 0;
+        for _ in 0..content_to_pour.size {
+            // If we are at this bottle's capacity, stop pouring and record how many units were poured.
+            if (self.content.len() + self.unknown_count) >= self.capacity {
+                break;
+            }
+            // If we are not yet at this bottle's capacity, pour one additional unit.
+            self.content.push(content_to_pour.color).unwrap();
+            count_poured += 1;
+        }
+
+        if count_poured == 0 {
+            Err(PourInError::AlreadyFull)
+        } else {
+            Ok(ColoredWaterRun {
+                color: content_to_pour.color,
+                size: content_to_pour.size.saturating_sub(count_poured)
+            })
+        }
+    }
+
+    fn test_pour_in(
+        &self,
+        content_to_pour: ColoredWaterRun
+    ) -> Result<ColoredWaterRun, PourInError> {
+        match self.get_top_color() {
+            Some(PartialColoredWaterUnit::Color(c)) => {
+                if c != content_to_pour.color {
+                    return Err(PourInError::MismatchedColors);
+                }
+            }
+            Some(PartialColoredWaterUnit::UnknownColor) => {
+                return Err(PourInError::DestUnknownColor);
+            }
+            None => ()
+        }
+
+        let empty_space = self.capacity - (self.content.len() + self.unknown_count);
+        if empty_space == 0 {
+            return Err(PourInError::AlreadyFull);
+        }
+
+        // we have verified this pour would work, now calculate the number
+        // of units in content_to_pour that we can't accept and return
+        Ok(ColoredWaterRun {
+            color: content_to_pour.color,
+            size: content_to_pour.size.saturating_sub(empty_space)
+        })
+    }
+
+    fn try_pour_out<T: Bottle>(&mut self, destination: &mut T) -> Result<(), PourOutError> {
+        if let Some(run_to_pour) = self.get_top_color_run() {
+            if let Ok(run_to_pour) = run_to_pour.try_into() {
+                let remaining_part_of_run = destination.try_pour_in(run_to_pour)?;
+
+                //Given how many units we tried to pour and how many units couldn't be poured, find the number of units that were actually poured
+                let units_poured = run_to_pour.size - remaining_part_of_run.size;
+
+                // Remove that number of units.
+                self.content.truncate(self.content.len() - units_poured);
+
+                // We never need to modify the number of unknown units; the conversion of run_to_pour
+                // from a PartialColoredWaterRun into a ColoredWaterRun means we either definitely
+                // are working with only known colors or would've already bailed out of the function with an error.
+                Ok(())
+            } else {
+                Err(PourOutError::SourceUnknownColor)
+            }
+        } else {
+            Err(PourOutError::Empty)
+        }
+    }
+
+    fn test_pour_out<T: Bottle>(&self, destination: &T) -> Result<(), PourOutError> {
+        if let Some(run_to_pour) = self.get_top_color_run() {
+            match ColoredWaterRun::try_from(run_to_pour) {
+                Ok(c) => Ok(destination.test_pour_in(c).map(|_| ())?),
+                Err(_) => Err(PourOutError::SourceUnknownColor)
+            }
+        } else {
+            Err(PourOutError::Empty)
+        }
     }
 }
 

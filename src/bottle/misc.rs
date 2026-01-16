@@ -37,23 +37,29 @@ impl From<BottleMaxCapError> for BottleCapacityError {
     }
 }
 
-///Reasons that pouring a [ColoredWaterRun](crate::colored_water::ColoredWaterRun) into a [KnownBottle](super::KnownBottle) may fail.
+///Reasons that pouring a [ColoredWaterRun](crate::colored_water::ColoredWaterRun) into a [Bottle](super::Bottle) may fail.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PourInError {
-    /// The destination [KnownBottle](super::KnownBottle) is full and cannot accept any part of the [ColoredWaterRun](crate::colored_water::ColoredWaterRun)
+    /// The destination [Bottle](super::Bottle) is full and cannot accept any part of the [ColoredWaterRun](crate::colored_water::ColoredWaterRun)
     AlreadyFull,
 
-    /// The destination [KnownBottle](super::KnownBottle) has a top color that does not match the color of the [ColoredWaterRun](crate::colored_water::ColoredWaterRun)
-    MismatchedColors
+    /// The destination [Bottle](super::Bottle) has a top color that does not match the color of the [ColoredWaterRun](crate::colored_water::ColoredWaterRun)
+    MismatchedColors,
+
+    /// The destination [Bottle](super::Bottle) has an unknown top color
+    DestUnknownColor
 }
 
 ///Reasons that pouring a [ColoredWaterRun](crate::colored_water::ColoredWaterRun) out of a [KnownBottle](super::KnownBottle)  may fail.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PourOutError {
-    /// The source [KnownBottle](super::KnownBottle) is entirely empty and has no content to pour
+    /// The source [Bottle](super::Bottle) is entirely empty and has no content to pour
     Empty,
 
-    /// The destination [KnownBottle](super::KnownBottle) could not accept the content to pour
+    /// The source [Bottle](super::Bottle) has an unknown top color
+    SourceUnknownColor,
+
+    /// The destination [Bottle](super::Bottle) could not accept the content to pour
     DestinationError(PourInError)
 }
 
