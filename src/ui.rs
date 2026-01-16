@@ -3,7 +3,6 @@
 use std::{
     io::{self, stdout, Write},
     marker::PhantomData,
-    path::Path,
     sync::Mutex,
     time::Duration
 };
@@ -22,9 +21,7 @@ use crossterm::{
 };
 
 use crate::{
-    gamestate::{
-        load_partial_gamestate_from_file, GameStateLoadError, KnownGameState, PartialGameState
-    },
+    gamestate::{KnownGameState, PartialGameState},
     solution::Solution
 };
 
@@ -74,20 +71,13 @@ impl Ui {
 
     /// Runs a loop that displays the menu for setting up a [PartialGameState] to be solved.
     ///
-    /// `game_state_file_path` is an optional path to a saved [PartialGameState] file.
-    /// If this is provided, the setup menu will initialize to the loaded [PartialGameState];
+    /// `initial_game_state` is an optional [PartialGameState] to start with.
+    /// If this is provided, the setup menu will initialize to the provided [PartialGameState];
     /// if not, the initial [PartialGameState] will be empty.
     pub fn setup_menu_loop<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
         &self,
-        game_state_file_path: Option<&Path>
+        initial_game_state: Option<PartialGameState<MAX_BCOUNT, B_MAX_CAP>>
     ) -> Result<PartialGameState<MAX_BCOUNT, B_MAX_CAP>, UiRunError> {
-        let initial_game_state: Option<PartialGameState<MAX_BCOUNT, B_MAX_CAP>> =
-            if let Some(game_state_file_path) = game_state_file_path {
-                Some(load_partial_gamestate_from_file(game_state_file_path)?)
-            } else {
-                None
-            };
-
         let mut state = SetupMenuState::new(initial_game_state);
         loop {
             let mut out = stdout();
@@ -207,42 +197,11 @@ pub enum UiRunError {
     IOError(io::Error),
 
     /// The user requested to exit the program using CTRL + C or ESC
-    ExitRequest,
-
-    /// An initial [PartialGameState] file was provided, but couldn't be loaded
-    GameStateLoadError(GameStateLoadError)
+    ExitRequest
 }
 
 impl From<io::Error> for UiRunError {
     fn from(value: io::Error) -> Self {
         UiRunError::IOError(value)
-    }
-}
-
-impl From<GameStateLoadError> for UiRunError {
-    fn from(value: GameStateLoadError) -> Self {
-        UiRunError::GameStateLoadError(value)
-    }
-}
-
-/// All errors the [Ui] can encounter
-#[derive(Debug)]
-pub enum UiError {
-    /// Encountered a [UiCreationError] while creating the [Ui]
-    CreationError(UiCreationError),
-
-    /// Encountered a [UiRunError] while running some portion of the [Ui]
-    RunError(UiRunError)
-}
-
-impl From<UiCreationError> for UiError {
-    fn from(value: UiCreationError) -> Self {
-        Self::CreationError(value)
-    }
-}
-
-impl From<UiRunError> for UiError {
-    fn from(value: UiRunError) -> Self {
-        Self::RunError(value)
     }
 }
