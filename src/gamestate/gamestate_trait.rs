@@ -16,8 +16,8 @@ use std::{
     slice::SliceIndex
 };
 
-/// Types representing game states that can be displayed
-pub trait GameStateDisplay {
+/// Types representing game states; collections of [Bottle]s that can be poured between
+pub trait GameState {
     type BottleT: Bottle;
 
     /// Gets the bottles of this game state as a slice
@@ -38,7 +38,7 @@ pub trait GameStateDisplay {
     ///
     /// Does not flush; the caller must call flush on `ostream` in order to actually display the game state.
     ///
-    /// If you want to queue some arbitrary portion of a game state, see [GameStateDisplay::queue_display_partial]
+    /// If you want to queue some arbitrary portion of a game state, see [GameState::queue_display_partial]
     fn queue_display_full<T: QueueableCommand>(
         &self,
         ostream: &mut T,
@@ -64,7 +64,7 @@ pub trait GameStateDisplay {
     ///
     /// Does not flush; the caller must call flush on `ostream` in order to actually display the game state.
     ///
-    /// If you want to queue this entire game state for display, see [GameStateDisplay::queue_display_full]
+    /// If you want to queue this entire game state for display, see [GameState::queue_display_full]
     fn queue_display_partial<
         T: QueueableCommand,
         V: RangeBounds<usize> + SliceIndex<[Self::BottleT], Output = [Self::BottleT]> + Clone

@@ -2,7 +2,7 @@ use super::{UiRunError, HIGHLIGHTED_STYLE};
 use crate::{
     bottle::{Bottle, PartialBottle},
     colored_water::{PartialColoredWaterIter, RevPartialColoredWaterIter},
-    gamestate::{GameStateDisplay, PartialGameState}
+    gamestate::{GameState, PartialGameState}
 };
 
 mod save_menu;

@@ -126,7 +126,7 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> From<KnownGameState<MAX_BC
     }
 }
 
-impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameStateDisplay
+impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> GameState
     for KnownGameState<MAX_BCOUNT, B_MAX_CAP>
 {
     type BottleT = KnownBottle<B_MAX_CAP>;
