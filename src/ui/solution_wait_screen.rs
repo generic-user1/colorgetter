@@ -1,6 +1,7 @@
 use crate::{
     gamestate::{Pour, SolvableGameState},
-    solution::Solution
+    solution::Solution,
+    ui::ActivityKind
 };
 
 use super::UiRunError;
@@ -23,11 +24,15 @@ pub(super) struct WaitScreenState<'a, GamestateT: SolvableGameState> {
     gamestate_to_solve: &'a GamestateT,
     solver_thread_handle: Option<JoinHandle<Option<VecDeque<Pour>>>>,
     pours: Option<VecDeque<Pour>>,
-    search_end_time: Arc<RwLock<Option<Instant>>>
+    search_end_time: Arc<RwLock<Option<Instant>>>,
+    activity: ActivityKind
 }
 
 impl<'a, GamestateT: SolvableGameState> WaitScreenState<'a, GamestateT> {
-    pub fn new(gamestate_to_solve: &'a GamestateT) -> WaitScreenState<'a, GamestateT> {
+    pub fn new(
+        gamestate_to_solve: &'a GamestateT,
+        activity: ActivityKind
+    ) -> WaitScreenState<'a, GamestateT> {
         let gs = gamestate_to_solve.clone();
         let search_start_time = Instant::now();
         let search_end_time = Arc::new(RwLock::new(None));
@@ -43,7 +48,8 @@ impl<'a, GamestateT: SolvableGameState> WaitScreenState<'a, GamestateT> {
             gamestate_to_solve,
             solver_thread_handle: Some(handle),
             pours: None,
-            search_end_time
+            search_end_time,
+            activity
         }
     }
 
@@ -111,9 +117,26 @@ impl<'a, GamestateT: SolvableGameState> WaitScreenState<'a, GamestateT> {
             let solution_found = self.pours.is_some();
 
             ostream.queue(Print(if solution_found {
-                format!("Found solution in {:?}", runtime)
+                match self.activity {
+                    ActivityKind::Solving | ActivityKind::SolvingDemystified => {
+                        format!("Found solution in {:?}", runtime)
+                    }
+                    ActivityKind::Demystifying => {
+                        format!("Found path to next color in {:?}", runtime)
+                    }
+                }
             } else {
-                format!("Finished searching with no solution in {:?}", runtime)
+                match self.activity {
+                    ActivityKind::Solving => {
+                        format!("Finished searching with no solution in {:?}", runtime)
+                    },
+                    ActivityKind::Demystifying => {
+                        format!("Finished searching with no path to next color in {:?}; reset game before continuing", runtime)
+                    },
+                    ActivityKind::SolvingDemystified => {
+                        format!("Finished searching with no solution in {:?}; reset game before continuing", runtime)
+                    }
+                }
             }))?;
         } else {
             ostream.queue(Print(format!("Searching for {:?}", runtime)))?;

@@ -46,6 +46,21 @@ use solution_wait_screen::{GetSolutionError, WaitScreenState};
 mod solution_viewer;
 use solution_viewer::SolutionViewerState;
 
+/// Represents the different kinds of activities that the program can be doing. Used to display different UI messages
+/// in different contexts.
+#[derive(Clone, Copy)]
+enum ActivityKind {
+    /// Finding a solution to a [KnownGameState]
+    Solving,
+
+    /// Demystifying a [PartialGameState] so that it can be solved
+    Demystifying,
+
+    /// Finding a solution to a [KnownGameState] that was just demystified
+    /// from a [PartialGameState] and may need a reset to be solved
+    SolvingDemystified
+}
+
 /// A struct that represents the user interface. Create an instance of it to set up the UI,
 /// use the associated functions to make the UI work, and drop the instance to destroy the UI
 /// and return the terminal back to normal.
@@ -80,9 +95,38 @@ impl Ui {
         &self,
         initial_game_state: Option<PartialGameState<MAX_BCOUNT, B_MAX_CAP>>
     ) -> Result<PartialGameState<MAX_BCOUNT, B_MAX_CAP>, UiRunError> {
-        let mut state = SetupMenuState::new(initial_game_state);
+        self.setup_menu_loop_inner(initial_game_state, None)
+    }
+
+    /// Inner logic of [Ui::setup_menu_loop]; offers the same functionality with the added ability
+    /// to restrict the cursor to a particular bottle for demystification purposes.
+    ///
+    /// If `specific_bottle_idx` is specified and valid, the setup menu will:
+    ///     
+    ///     - default the cursor position to the topmost unit within that bottle
+    ///     
+    ///     - only allow units within that bottle to be edited; specifically, only units
+    ///       that were unknown colors when this function was called
+    ///
+    ///     - entirely disable editing of the number of bottles or bottle capacity and hide messages associated with
+    ///       those features
+    ///
+    /// If `specific_bottle_idx` is unspecified or invalid, all setup menu functionality is enabled.
+    /// `specific_bottle_idx` is considered invalid when:
+    ///     
+    ///     - `initial_game_state` is `None`
+    ///
+    ///     - `initial_game_state` has no bottle at the given index
+    ///
+    ///     - the bottle specified by `initial_game_state` has zero unknown units
+    fn setup_menu_loop_inner<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
+        &self,
+        initial_game_state: Option<PartialGameState<MAX_BCOUNT, B_MAX_CAP>>,
+        specific_bottle_idx: Option<usize>
+    ) -> Result<PartialGameState<MAX_BCOUNT, B_MAX_CAP>, UiRunError> {
+        let mut state = SetupMenuState::new(initial_game_state, specific_bottle_idx);
+        let mut out = stdout();
         loop {
-            let mut out = stdout();
             out.queue(Clear(ClearType::All))?.queue(MoveTo(0, 0))?;
             state.queue_display(&mut out)?;
             out.flush()?;
@@ -116,29 +160,37 @@ impl Ui {
             }
 
             //try to find a solution to this PartialGameState - this will be a partial state with at least one unknown color on top
-            let found_solution = self.solution_finding_loop(&working_gs)?;
+            let found_solution =
+                self.solution_finding_loop_inner(&working_gs, ActivityKind::Demystifying)?;
             if let Some(found_solution) = found_solution {
-                //TODO: specialize the message shown to say something other than "found solution"
                 self.solution_viewer_loop(&found_solution)?;
                 let pours = found_solution.take_pours();
+
+                // this var will track the final bottle poured from so we can limit
+                // the unknown-to-known setup menu to that bottle, as it's the only one that
+                // should now have an unknown unit on top.
+                let mut last_source_idx = None;
+
                 for pour in pours {
+                    last_source_idx = Some(pour.source_bottle_index);
                     working_gs = pour
                         .try_apply(&working_gs)
                         .expect("invalid pour from solution");
                 }
 
-                //TODO: find some way to limit editing to only the revealed bottle
-                //so that our assumption about the correspondance between known colors in working_gs and unknown colors initial_gs always holds true,
-                //and to make entering the new info more convinient
-                //for now, this only works if the user chooses only to update unknown colors
-                working_gs = self.setup_menu_loop(Some(working_gs))?;
+                working_gs = self.setup_menu_loop_inner(Some(working_gs), last_source_idx)?;
 
-                //identify unknown colors in initial_gs that are known in working_gs, then update initial_gs accordingly
-                for (bottle_idx, initial_bottle) in
-                    initial_gs.get_mut_bottles().iter_mut().enumerate()
-                {
-                    let working_bottle = working_gs.get_bottles().get(bottle_idx)
-                .expect("bottle in initial_gs had no corresponding bottle in working_gs; this happens when number of working_gs bottles is modified unexpectedly");
+                // identify unknown colors in initial_gs's bottle at last_source_idx
+                // whose equivalents in working_gs are known
+                if let Some(last_source_idx) = last_source_idx {
+                    let initial_bottle = initial_gs
+                        .get_mut_bottles()
+                        .get_mut(last_source_idx)
+                        .expect("bottle in initial_gs at last_source_idx doesn't exist");
+                    let working_bottle = working_gs
+                        .get_bottles()
+                        .get(last_source_idx)
+                        .expect("bottle in working_gs at last_source_idx doesn't exist");
 
                     for color_idx in (0..initial_bottle.capacity()).rev() {
                         let initial_bottle_sample_result = initial_bottle.sample_at(color_idx);
@@ -162,22 +214,68 @@ impl Ui {
             } else {
                 // no solution to the partial state could be found - we can't get anywhere useful from here
                 // therefore, we must reset to our initial state and try again
-                // TODO: have some indication to the user that this is what's happening instead of just resetting
-                // without a word
                 working_gs = initial_gs.clone();
             }
         }
     }
 
-    /// Runs a loop that handles display and input while the given [SolvableGameState] is solved
+    /// Runs a loop that handles display and input while the given [DemystificationResult] is solved
     /// in the background.
     ///
-    /// Returns an [`Option<Solution>`]; if [None], no solution could be found.
-    pub fn solution_finding_loop<'a, GamestateT: SolvableGameState>(
+    /// This will first try to solve the [DemystificationResult::current_state]. If no solution can be found,
+    /// will inform the user that a reset is required, then try to solve the [DemystificationResult::initial_state].
+    ///
+    /// Returns an [`Option<Solution>`]; if [None], no solution could be found for either state.
+    pub fn demystified_result_solution_finding_loop<
+        'a: 'b,
+        'b,
+        const MAX_BCOUNT: usize,
+        const B_MAX_CAP: usize
+    >(
         &self,
-        gamestate_to_solve: &'a GamestateT
+        result_to_solve: &'a DemystificationResult<MAX_BCOUNT, B_MAX_CAP>
+    ) -> Result<Option<Solution<'b, KnownGameState<MAX_BCOUNT, B_MAX_CAP>>>, UiRunError> {
+        let current_state_solution = self.solution_finding_loop_inner(
+            &result_to_solve.current_state,
+            ActivityKind::SolvingDemystified
+        )?;
+        if current_state_solution.is_some() {
+            return Ok(current_state_solution);
+        } else if result_to_solve.current_state != result_to_solve.initial_state {
+            let initial_state_solution = self.solution_finding_loop_inner(
+                &result_to_solve.initial_state,
+                ActivityKind::Solving
+            )?;
+            return Ok(initial_state_solution);
+        }
+        Ok(None)
+    }
+
+    /// Runs a loop that handles display and input while the given [KnownGameState] is solved
+    /// in the background.
+    ///
+    /// Note that this only handles [KnownGameState]s. If you instead have a [PartialGameState], you likely want to use
+    /// [Ui::demystifier_loop] and [Ui::demystified_result_solution_finding_loop] instead of this function.
+    ///
+    /// Returns an [`Option<Solution>`]; if [None], no solution could be found.
+    pub fn solution_finding_loop<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
+        &self,
+        gamestate_to_solve: &'a KnownGameState<MAX_BCOUNT, B_MAX_CAP>
+    ) -> Result<Option<Solution<'a, KnownGameState<MAX_BCOUNT, B_MAX_CAP>>>, UiRunError> {
+        self.solution_finding_loop_inner(gamestate_to_solve, ActivityKind::Solving)
+    }
+
+    /// Inner logic for [Ui::solution_finding_loop]; much more general.
+    ///
+    /// Handles solving any kind of [SolvableGameState]
+    /// rather than just [KnownGameState], and allows for different sets of messages to be displayed while doing so
+    /// with the `activity` parameter.
+    fn solution_finding_loop_inner<'a, GamestateT: SolvableGameState>(
+        &self,
+        gamestate_to_solve: &'a GamestateT,
+        activity: ActivityKind
     ) -> Result<Option<Solution<'a, GamestateT>>, UiRunError> {
-        let mut state = WaitScreenState::new(gamestate_to_solve);
+        let mut state = WaitScreenState::new(gamestate_to_solve, activity);
         let mut out = stdout();
         loop {
             let is_finished = state.check_finished();
@@ -187,19 +285,17 @@ impl Ui {
 
             // wait to handle an event if we're finished;
             // if we're not finished, handle events only if there are any events to be handled
-            let should_exit = if is_finished || event::poll(Duration::from_millis(16))? {
-                state.handle_event(event::read()?)?
-            } else {
-                false
-            };
+            if is_finished || event::poll(Duration::from_millis(16))? {
+                let should_exit = state.handle_event(event::read()?)?;
 
-            if should_exit {
-                match state.get_solution() {
-                    Ok(solution) => return Ok(Some(solution)),
-                    Err(e) => match e {
-                        GetSolutionError::NoSolutionFound => return Ok(None),
-                        GetSolutionError::NotYetFinished => {
-                            panic!("Not yet finished, but should_exit was true")
+                if should_exit {
+                    match state.get_solution() {
+                        Ok(solution) => return Ok(Some(solution)),
+                        Err(e) => match e {
+                            GetSolutionError::NoSolutionFound => return Ok(None),
+                            GetSolutionError::NotYetFinished => {
+                                panic!("Not yet finished, but should_exit was true")
+                            }
                         }
                     }
                 }

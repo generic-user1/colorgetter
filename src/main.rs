@@ -21,17 +21,11 @@ fn main() -> Result<(), AppError> {
 
     let demystified = ui.demystifier_loop(pgs)?;
 
-    let current_state_solution = ui.solution_finding_loop(&demystified.current_state)?;
-    if let Some(solution) = current_state_solution {
+    let solution = ui.demystified_result_solution_finding_loop(&demystified)?;
+    if let Some(solution) = solution {
         ui.solution_viewer_loop(&solution)?;
-    } else if demystified.current_state != demystified.initial_state {
-        //TODO: find some way to print a message that a reset is needed!
-        //since we can't solve the state post-demystification, we need to reset and try solving the initial state instead
-        let initial_state_solution = ui.solution_finding_loop(&demystified.initial_state)?;
-        if let Some(solution) = initial_state_solution {
-            ui.solution_viewer_loop(&solution)?;
-        }
     }
+
     Ok(())
 }
 
