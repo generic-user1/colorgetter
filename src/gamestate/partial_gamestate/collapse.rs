@@ -33,6 +33,56 @@ impl Iterator for BasicShuffleIter {
 }
 
 impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> PartialGameState<MAX_BCOUNT, B_MAX_CAP> {
+    /// Tries to create and return a Vec of several possible [KnownGameState]s from this [PartialGameState]
+    ///
+    /// `max_count` specifies the maximum number of states to return. The returned Vec will never be longer than this,
+    /// but may be shorter. No duplicates will be included in the return value.
+    /// If this [PartialGameState] has more than `max_count` distinct possible [KnownGameState]s, a random sample of
+    /// the states will be returned. If there are fewer than `max_count` distinct possible states, all states will be returned.
+    ///
+    /// This function will fail to produce a result if this [PartialGameState] has bottles of varying capacity. This limitation
+    /// may or may not be resolved in the future.
+    pub fn collapse(&self, max_count: usize) -> Option<Vec<KnownGameState<MAX_BCOUNT, B_MAX_CAP>>> {
+        //strategy here is to first use collapse_all and see if there are at least max_count+1 states.
+        //if there are, use collapse_random_sample and return the result. If there aren't, just return the result of collapse_all
+        let mut found_states = Vec::with_capacity(max_count + 1);
+        if let Some(collapse_all_iter) = self.collapse_all() {
+            for possibility in collapse_all_iter {
+                found_states.push(possibility);
+                if found_states.len() > max_count {
+                    break;
+                }
+            }
+
+            if found_states.len() > max_count {
+                //we got max_count + 1 possibilities from collapse_all; we now know we should instead use collapse_random_sample.
+                found_states.clear();
+                for possibility in self
+                    .collapse_random_sample()
+                    .expect("collapse_random_sample failed when collapse_all succeeded")
+                {
+                    found_states.push(possibility);
+                    if found_states.len() >= max_count {
+                        break;
+                    }
+                }
+
+                //the random sample may have produced duplicates, so we'll deduplicate
+                found_states.sort();
+                found_states.dedup();
+                //this may mean we're under max_count, but unless we get horrifically unlucky, we shouldn't be too far under it
+                //TODO: look into ensuring we always reach max_count when using the random strategy while avoiding duplicates and
+                //potential endless loops
+
+                Some(found_states)
+            } else {
+                Some(found_states)
+            }
+        } else {
+            None
+        }
+    }
+
     /// Tries to create and return an iterator over all possible [KnownGameState]s from this [PartialGameState]
     ///
     /// All possible [KnownGameState]s will eventually be yielded, but in a very specific order.
