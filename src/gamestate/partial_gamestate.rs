@@ -6,6 +6,8 @@ use crate::{
 use heapless::{CapacityError, Vec};
 use serde::{Deserialize, Serialize};
 
+mod collapse;
+
 /// The state a particular game is in, including [PartialBottle]s
 /// instead of regular [KnownBottle](crate::bottle::KnownBottle)s
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash)]

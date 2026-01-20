@@ -1,4 +1,4 @@
-//! Implementation of a user interface for setting up [KnownGameState](crate::gamestate::KnownGameState)s/[PartialGameState]s
+//! Implementation of a user interface for setting up [KnownGameState]s/[PartialGameState]s
 
 use std::{
     io::{self, stdout, Write},
@@ -103,22 +103,22 @@ impl Ui {
     ///
     /// If `specific_bottle_idx` is specified and valid, the setup menu will:
     ///     
-    ///     - default the cursor position to the topmost unit within that bottle
+    /// - default the cursor position to the topmost unit within that bottle
     ///     
-    ///     - only allow units within that bottle to be edited; specifically, only units
-    ///       that were unknown colors when this function was called
+    /// - only allow units within that bottle to be edited; specifically, only units
+    ///   that were unknown colors when this function was called
     ///
-    ///     - entirely disable editing of the number of bottles or bottle capacity and hide messages associated with
-    ///       those features
+    /// - entirely disable editing of the number of bottles or bottle capacity and hide messages associated with
+    ///   those features
     ///
     /// If `specific_bottle_idx` is unspecified or invalid, all setup menu functionality is enabled.
     /// `specific_bottle_idx` is considered invalid when:
     ///     
-    ///     - `initial_game_state` is `None`
+    /// - `initial_game_state` is `None`
     ///
-    ///     - `initial_game_state` has no bottle at the given index
+    /// - `initial_game_state` has no bottle at the given index
     ///
-    ///     - the bottle specified by `initial_game_state` has zero unknown units
+    /// - the bottle specified by `initial_game_state` has zero unknown units
     fn setup_menu_loop_inner<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
         &self,
         initial_game_state: Option<PartialGameState<MAX_BCOUNT, B_MAX_CAP>>,
