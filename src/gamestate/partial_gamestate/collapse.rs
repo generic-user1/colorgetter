@@ -201,7 +201,7 @@ where
     //iterate through each unknown unit in each bottle,
     //setting each unknown unit to the "next" permutable representation item.
     for bottle in gs.bottles.iter_mut() {
-        for c_idx in 0..bottle.capacity() {
+        for c_idx in (0..bottle.capacity()).rev() {
             let sample_result = bottle.sample_at(c_idx);
             if sample_result != BottleSampleResult::UnknownColor {
                 continue;
