@@ -10,9 +10,9 @@ use std::{
 use core::ops::Drop;
 
 use crossterm::{
-    cursor::{Hide, MoveTo, Show},
+    cursor::{Hide, MoveDown, MoveTo, MoveToColumn, Show},
     event,
-    style::{Attributes, Color, ContentStyle},
+    style::{Attributes, Color, ContentStyle, Print},
     terminal::{
         disable_raw_mode, enable_raw_mode, Clear, ClearType, EnterAlternateScreen,
         LeaveAlternateScreen
@@ -24,7 +24,7 @@ use crate::{
     bottle::{Bottle, BottleSampleResult},
     colored_water::PartialColoredWaterUnit,
     gamestate::{GameState, KnownGameState, PartialGameState, SolvableGameState},
-    solution::Solution
+    solution::{try_demystify_next_step, Solution}
 };
 
 static UI_EXISTS: Mutex<bool> = Mutex::new(false);
@@ -41,25 +41,10 @@ mod setup_menu;
 use setup_menu::SetupMenuState;
 
 mod solution_wait_screen;
-use solution_wait_screen::{GetSolutionError, WaitScreenState};
+use solution_wait_screen::WaitScreenState;
 
 mod solution_viewer;
 use solution_viewer::SolutionViewerState;
-
-/// Represents the different kinds of activities that the program can be doing. Used to display different UI messages
-/// in different contexts.
-#[derive(Clone, Copy)]
-enum ActivityKind {
-    /// Finding a solution to a [KnownGameState]
-    Solving,
-
-    /// Demystifying a [PartialGameState] so that it can be solved
-    Demystifying,
-
-    /// Finding a solution to a [KnownGameState] that was just demystified
-    /// from a [PartialGameState] and may need a reset to be solved
-    SolvingDemystified
-}
 
 /// A struct that represents the user interface. Create an instance of it to set up the UI,
 /// use the associated functions to make the UI work, and drop the instance to destroy the UI
@@ -160,8 +145,7 @@ impl Ui {
             }
 
             //try to find a solution to this PartialGameState - this will be a partial state with at least one unknown color on top
-            let found_solution =
-                self.solution_finding_loop_inner(&working_gs, ActivityKind::Demystifying)?;
+            let found_solution = self.next_color_wait_loop(&working_gs)?;
             if let Some(found_solution) = found_solution {
                 self.solution_viewer_loop(&found_solution)?;
                 let pours = found_solution.take_pours();
@@ -219,6 +203,54 @@ impl Ui {
         }
     }
 
+    /// Handles the details of finding the path to the next color during demystification
+    ///
+    /// Split out from demystifier_loop due to complexity, not due to general usefulness
+    fn next_color_wait_loop<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
+        &self,
+        gs: &'a PartialGameState<MAX_BCOUNT, B_MAX_CAP>
+    ) -> Result<Option<Solution<'a, PartialGameState<MAX_BCOUNT, B_MAX_CAP>>>, UiRunError> {
+        let inner_gs = gs.clone();
+        let mut state = WaitScreenState::new(move || {
+            try_demystify_next_step(&inner_gs).map(|solution| solution.take_pours())
+        });
+
+        let mut out = stdout();
+        out.queue(Clear(ClearType::All))?;
+        loop {
+            let is_finished = state.check_finished();
+            out.queue(MoveTo(0, 0))?;
+            if is_finished {
+                out.queue(Clear(ClearType::All))?.queue(Print(
+                    if state.borrow_result().unwrap().is_some() {
+                        "Found path to next color"
+                    } else {
+                        "No path to next color found; reset game before continuing"
+                    }
+                ))?;
+            } else {
+                out.queue(Print("Finding path to next color..."))?;
+            }
+
+            out.queue(MoveDown(1))?.queue(MoveToColumn(0))?;
+            state.queue_display(&mut out)?;
+            out.flush()?;
+
+            // wait to handle an event if we're finished;
+            // if we're not finished, handle events only if there are any events to be handled
+            if is_finished || event::poll(Duration::from_millis(16))? {
+                let should_exit = state.handle_event(event::read()?)?;
+
+                if should_exit {
+                    let solution = state.take_result().map(|pours| {
+                        Solution::try_from_parts(gs, pours).expect("solution wasn't valid")
+                    });
+                    return Ok(solution);
+                }
+            }
+        }
+    }
+
     /// Runs a loop that handles display and input while the given [DemystificationResult] is solved
     /// in the background.
     ///
@@ -235,17 +267,13 @@ impl Ui {
         &self,
         result_to_solve: &'a DemystificationResult<MAX_BCOUNT, B_MAX_CAP>
     ) -> Result<Option<Solution<'b, KnownGameState<MAX_BCOUNT, B_MAX_CAP>>>, UiRunError> {
-        let current_state_solution = self.solution_finding_loop_inner(
-            &result_to_solve.current_state,
-            ActivityKind::SolvingDemystified
-        )?;
+        let current_state_solution =
+            self.solution_finding_loop_inner(&result_to_solve.current_state, true)?;
         if current_state_solution.is_some() {
             return Ok(current_state_solution);
         } else if result_to_solve.current_state != result_to_solve.initial_state {
-            let initial_state_solution = self.solution_finding_loop_inner(
-                &result_to_solve.initial_state,
-                ActivityKind::Solving
-            )?;
+            let initial_state_solution =
+                self.solution_finding_loop_inner(&result_to_solve.initial_state, false)?;
             return Ok(initial_state_solution);
         }
         Ok(None)
@@ -262,24 +290,38 @@ impl Ui {
         &self,
         gamestate_to_solve: &'a KnownGameState<MAX_BCOUNT, B_MAX_CAP>
     ) -> Result<Option<Solution<'a, KnownGameState<MAX_BCOUNT, B_MAX_CAP>>>, UiRunError> {
-        self.solution_finding_loop_inner(gamestate_to_solve, ActivityKind::Solving)
+        self.solution_finding_loop_inner(gamestate_to_solve, false)
     }
 
-    /// Inner logic for [Ui::solution_finding_loop]; much more general.
-    ///
-    /// Handles solving any kind of [SolvableGameState]
-    /// rather than just [KnownGameState], and allows for different sets of messages to be displayed while doing so
-    /// with the `activity` parameter.
+    /// Inner logic for [Ui::solution_finding_loop]; allows controlling whether to prompt for game reset
     fn solution_finding_loop_inner<'a, GamestateT: SolvableGameState>(
         &self,
         gamestate_to_solve: &'a GamestateT,
-        activity: ActivityKind
+        prompt_for_reset: bool
     ) -> Result<Option<Solution<'a, GamestateT>>, UiRunError> {
-        let mut state = WaitScreenState::new(gamestate_to_solve, activity);
+        let inner_gamestate_to_solve = gamestate_to_solve.clone();
+        let mut state = WaitScreenState::new(move || {
+            Solution::try_new(&inner_gamestate_to_solve, 0).map(|x| x.take_pours())
+        });
         let mut out = stdout();
+        out.queue(Clear(ClearType::All))?;
         loop {
             let is_finished = state.check_finished();
-            out.queue(Clear(ClearType::All))?.queue(MoveTo(0, 0))?;
+            out.queue(MoveTo(0, 0))?;
+            if is_finished {
+                out.queue(Clear(ClearType::All))?.queue(Print(
+                    if state.borrow_result().unwrap().is_some() {
+                        "Found solution"
+                    } else if prompt_for_reset {
+                        "No solution found; reset game before continuing"
+                    } else {
+                        "No solution found"
+                    }
+                ))?;
+            } else {
+                out.queue(Print("Finding solution..."))?;
+            }
+            out.queue(MoveDown(1))?.queue(MoveToColumn(0))?;
             state.queue_display(&mut out)?;
             out.flush()?;
 
@@ -289,15 +331,11 @@ impl Ui {
                 let should_exit = state.handle_event(event::read()?)?;
 
                 if should_exit {
-                    match state.get_solution() {
-                        Ok(solution) => return Ok(Some(solution)),
-                        Err(e) => match e {
-                            GetSolutionError::NoSolutionFound => return Ok(None),
-                            GetSolutionError::NotYetFinished => {
-                                panic!("Not yet finished, but should_exit was true")
-                            }
-                        }
-                    }
+                    let solution = state.take_result().map(|pours| {
+                        Solution::try_from_parts(gamestate_to_solve, pours)
+                            .expect("solution wasn't valid")
+                    });
+                    return Ok(solution);
                 }
             }
         }

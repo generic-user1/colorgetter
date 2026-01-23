@@ -1,9 +1,3 @@
-use crate::{
-    gamestate::{Pour, SolvableGameState},
-    solution::Solution,
-    ui::ActivityKind
-};
-
 use super::UiRunError;
 use crossterm::{
     cursor::{MoveDown, MoveToColumn},
@@ -12,59 +6,55 @@ use crossterm::{
     QueueableCommand
 };
 use std::{
-    collections::VecDeque,
     io,
     sync::{Arc, RwLock},
     thread::{self, JoinHandle},
     time::{Duration, Instant}
 };
 
-pub(super) struct WaitScreenState<'a, GamestateT: SolvableGameState> {
+/// A struct for running some arbitrary job in a different thread and handling user input
+/// and printing runtime + job status while waiting for that job to finish.
+pub(super) struct WaitScreenState<T: Send + 'static> {
     search_start_time: Instant,
-    gamestate_to_solve: &'a GamestateT,
-    solver_thread_handle: Option<JoinHandle<Option<VecDeque<Pour>>>>,
-    pours: Option<VecDeque<Pour>>,
-    search_end_time: Arc<RwLock<Option<Instant>>>,
-    activity: ActivityKind
+    waiting_thread_handle: Option<JoinHandle<T>>,
+    thread_result: Option<T>,
+    search_end_time: Arc<RwLock<Option<Instant>>>
 }
 
-impl<'a, GamestateT: SolvableGameState> WaitScreenState<'a, GamestateT> {
-    pub fn new(
-        gamestate_to_solve: &'a GamestateT,
-        activity: ActivityKind
-    ) -> WaitScreenState<'a, GamestateT> {
-        let gs = gamestate_to_solve.clone();
+impl<T: Send + 'static> WaitScreenState<T> {
+    pub fn new<U>(job_to_wait_on: U) -> WaitScreenState<T>
+    where
+        U: FnOnce() -> T + Send + 'static
+    {
         let search_start_time = Instant::now();
         let search_end_time = Arc::new(RwLock::new(None));
         let search_end_time_inner = search_end_time.clone();
         let handle = thread::spawn(move || {
-            let pours = Solution::try_new(&gs, 0).map(|x| x.take_pours());
+            let result = job_to_wait_on();
             let end_time = Instant::now();
             *search_end_time_inner.write().expect("main thread panicked") = Some(end_time);
-            pours
+            result
         });
         WaitScreenState {
             search_start_time,
-            gamestate_to_solve,
-            solver_thread_handle: Some(handle),
-            pours: None,
-            search_end_time,
-            activity
+            waiting_thread_handle: Some(handle),
+            thread_result: None,
+            search_end_time
         }
     }
 
-    /// Determine whether searching for a [Solution] has finished (`true`) or is still in progress (`false`).
+    /// Determine whether the job being waited on has finished (`true`) or is still in progress (`false`).
     ///
-    /// Will update internal state to set finish time and search result if this call determines that the search is newly finished.
+    /// Will update internal state to set finish time and store job result if this call determines that the search is newly finished.
     pub fn check_finished(&mut self) -> bool {
-        if self.solver_thread_handle.is_some() {
+        if self.waiting_thread_handle.is_some() {
             // if our thread handle still exists, the thread is either still running,
             // or has completed and we just haven't processed the result.
-            if self.solver_thread_handle.as_ref().unwrap().is_finished() {
-                // take the thread handle out of the option, replacing the `self.solver_thread_handle` with None
-                let handle = self.solver_thread_handle.take().unwrap();
-                // pull the Option<VecDeque<Pour>> out of the handle, put it into self.pours
-                self.pours = handle.join().expect("solver thread panicked");
+            if self.waiting_thread_handle.as_ref().unwrap().is_finished() {
+                // take the thread handle out of the option, replacing the `self.waiting_thread_handle` with None
+                let handle = self.waiting_thread_handle.take().unwrap();
+                // pull the result out of the handle, put it into self.thread_result
+                self.thread_result = Some(handle.join().expect("waiting thread panicked"));
                 true
             } else {
                 false
@@ -74,30 +64,40 @@ impl<'a, GamestateT: SolvableGameState> WaitScreenState<'a, GamestateT> {
         }
     }
 
-    /// Get the [Solution] found while waiting in the Wait Screen, if it exists.
+    /// Borrow the result of the job being waited on in the Wait Screen if possible
     ///
-    /// Will update internal state to set finish time and search result if this call determines that the search is newly finished.
-    pub fn get_solution(&mut self) -> Result<Solution<'a, GamestateT>, GetSolutionError> {
-        if !self.check_finished() {
-            return Err(GetSolutionError::NotYetFinished);
-        }
-
-        // if we reach this point, we know that we're finished.
-        if let Some(pours) = &self.pours {
-            Ok(
-                Solution::try_from_parts(self.gamestate_to_solve, pours.clone())
-                    .expect("solution was not valid")
-            )
+    /// If the job has not yet finished, returns None.
+    /// If the job has finished but has no result, panics, as this should never happen.
+    ///
+    /// Will update internal state to set finish time and store job result if this call determines that the search is newly finished.
+    pub fn borrow_result(&mut self) -> Option<&T> {
+        if self.check_finished() {
+            if self.thread_result.is_some() {
+                self.thread_result.as_ref()
+            } else {
+                panic!("job finished, but result was missing")
+            }
         } else {
-            Err(GetSolutionError::NoSolutionFound)
+            None
         }
     }
 
-    /// Get a [Duration] representing the amount of time spent searching for a [Solution].
-    /// This will be the time since this WaitScreenState's creation if solution searching is still in progress,
-    /// but will be set-in-stone once the searching has completed.
+    /// Take ownership of the result of the job being waited on in the Wait Screen, waiting
+    /// on the job to finish if necessary.
+    pub fn take_result(self) -> T {
+        if let Some(handle) = self.waiting_thread_handle {
+            handle.join().expect("waiting thread panicked")
+        } else {
+            self.thread_result
+                .expect("job finished, but result was missing")
+        }
+    }
+
+    /// Get a [Duration] representing the amount of time spent waiting.
+    /// This will be the time since this WaitScreenState's creation if the job is still in progress,
+    /// but will be set-in-stone once the job has completed.
     ///
-    /// Will update internal state to set finish time and search result if this call determines that the search is newly finished.
+    /// Will update internal state to set finish time and store job result if this call determines that the job is newly finished.
     pub fn get_runtime(&mut self) -> Duration {
         if !self.check_finished() {
             Instant::now().duration_since(self.search_start_time)
@@ -110,36 +110,15 @@ impl<'a, GamestateT: SolvableGameState> WaitScreenState<'a, GamestateT> {
         }
     }
 
-    pub fn queue_display<T: QueueableCommand>(&mut self, ostream: &mut T) -> io::Result<()> {
+    /// Display runtime, whether the job is still running, and a button prompt.
+    /// Does not describe what specifically the job is; that must be done by the caller.
+    pub fn queue_display<U: QueueableCommand>(&mut self, ostream: &mut U) -> io::Result<()> {
         let is_finished = self.check_finished();
         let runtime = self.get_runtime();
         if is_finished {
-            let solution_found = self.pours.is_some();
-
-            ostream.queue(Print(if solution_found {
-                match self.activity {
-                    ActivityKind::Solving | ActivityKind::SolvingDemystified => {
-                        format!("Found solution in {:?}", runtime)
-                    }
-                    ActivityKind::Demystifying => {
-                        format!("Found path to next color in {:?}", runtime)
-                    }
-                }
-            } else {
-                match self.activity {
-                    ActivityKind::Solving => {
-                        format!("Finished searching with no solution in {:?}", runtime)
-                    },
-                    ActivityKind::Demystifying => {
-                        format!("Finished searching with no path to next color in {:?}; reset game before continuing", runtime)
-                    },
-                    ActivityKind::SolvingDemystified => {
-                        format!("Finished searching with no solution in {:?}; reset game before continuing", runtime)
-                    }
-                }
-            }))?;
+            ostream.queue(Print(format!("Finished after running for {:?}", runtime)))?;
         } else {
-            ostream.queue(Print(format!("Searching for {:?}", runtime)))?;
+            ostream.queue(Print(format!("Running for {:?}", runtime)))?;
         }
         ostream.queue(MoveDown(1))?.queue(MoveToColumn(0))?;
         if is_finished {
@@ -172,13 +151,4 @@ impl<'a, GamestateT: SolvableGameState> WaitScreenState<'a, GamestateT> {
         }
         Ok(false)
     }
-}
-
-/// Reasons why [WaitScreenState::get_solution] may fail
-#[derive(Debug)]
-pub enum GetSolutionError {
-    /// No solution has been found yet, but processing is still in progress
-    NotYetFinished,
-    /// Processing has finished and no solution was found
-    NoSolutionFound
 }

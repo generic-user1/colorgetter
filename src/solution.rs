@@ -6,6 +6,8 @@ use bimap::BiHashMap;
 
 use crate::gamestate::{Pour, PourError, SolvableGameState};
 
+mod demystify;
+pub use demystify::try_demystify_next_step;
 /// Represents the state of a solution finding algorithm
 struct SolutionState<GamestateT: SolvableGameState> {
     pub all_gamestates: BiHashMap<usize, GamestateT>,
@@ -76,10 +78,14 @@ impl<'a, GamestateT: SolvableGameState> Solution<'a, GamestateT> {
             working_gs = as_valid.apply();
             owned_pours.push_back(pour);
         }
-        Ok(Self {
-            base_gamestate,
-            pours: owned_pours
-        })
+        if working_gs.is_solved() {
+            Ok(Self {
+                base_gamestate,
+                pours: owned_pours
+            })
+        } else {
+            Err(SolutionFromPartsError::DoesNotFinish)
+        }
     }
 
     /// For the given SolutionState, generate possible pours and
