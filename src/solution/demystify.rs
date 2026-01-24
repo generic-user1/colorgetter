@@ -2,7 +2,14 @@
 
 use super::*;
 use crate::gamestate::PartialGameState;
-use std::collections::{hash_map::Entry, HashMap, VecDeque};
+use crossbeam_channel;
+use std::{
+    collections::{hash_map::Entry, HashMap, VecDeque},
+    num::NonZeroUsize,
+    thread::{self, available_parallelism}
+};
+
+const DEFAULT_THREADCOUNT: NonZeroUsize = NonZeroUsize::new(4).unwrap();
 
 /// Try to find a [Solution] for the given [PartialGameState] that leads to revealing a new unknown color unit
 /// while using a prediction technique to try and prevent dead-ends. Similar to [Solution::try_new], will return [None]
@@ -20,14 +27,56 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
     // try to get a sample of possible gamestates
     // if this fails, our prediction technique won't work
     if let Some(possible_gamestates) = gamestate_to_solve.collapse(SAMPLE_SIZE) {
-        // solve all those sample gamestates
-        // TODO: this part is very slow. find a way to speed it up, or switch this algorithm out for one that doesn't
-        // need full-depth solutions for this many states
+        // solve all those sample gamestates in multiple threads
+
+        //thread count is either the number of available threads (or a default of 4 if available_parallelism fails),
+        //or the number of gamestates we have to solve, whichever is smaller
+        let thread_count: usize = possible_gamestates.len().min(
+            available_parallelism()
+                .unwrap_or(DEFAULT_THREADCOUNT)
+                .into()
+        );
+        //create some channels to send unsolved gamestates from our main thread to workers, and send solutions
+        //from our workers to our main thread
+        let (send_work, recv_work) = crossbeam_channel::unbounded();
+        let (send_solution, recv_solution) = crossbeam_channel::unbounded();
+
         let mut solutions = Vec::new();
-        for possible_gs in possible_gamestates.iter() {
-            if let Some(this_solution) = Solution::try_new(possible_gs, 0) {
-                solutions.push(this_solution);
+        thread::scope(|s| {
+            //spawn worker threads
+            for _ in 0..thread_count {
+                //each worker gets its own work receiver and result sender
+                let thread_recv = recv_work.clone();
+                let thread_send = send_solution.clone();
+                s.spawn(move || {
+                    //while a work sender exists, wait to get a new gamestate and then solve it
+                    while let Ok(possible_gamestate) = thread_recv.recv() {
+                        if let Some(solution) = Solution::try_new(possible_gamestate, 0) {
+                            //if we found a solution, send it back through the solution sender
+                            thread_send
+                                .send(solution)
+                                .expect("main thread hung up before worker completed");
+                        }
+                    }
+                });
             }
+
+            //send all the possible gamestates to the workers
+            for possible_gamestate in possible_gamestates.iter() {
+                send_work
+                    .send(possible_gamestate)
+                    .expect("worker threads hung up before all states processed");
+            }
+
+            //drop the work sender so that threads know there won't be any more work to do.
+            drop(send_work);
+            //drop our copy of the result sender so that only the workers' copies will remain
+            drop(send_solution);
+        });
+
+        //receive all the solutions from the workers
+        while let Ok(solution) = recv_solution.recv() {
+            solutions.push(solution);
         }
 
         // we want to find the most common first pours, so we'll organize all solutions by their first pour,
