@@ -4,7 +4,7 @@ use super::*;
 use crate::gamestate::PartialGameState;
 use crossbeam_channel;
 use std::{
-    collections::{hash_map::Entry, HashMap, VecDeque},
+    collections::{hash_map::Entry, HashMap},
     num::NonZeroUsize,
     thread::{self, available_parallelism}
 };
@@ -109,7 +109,7 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
         // and then repeat with the second pour. we'll keep repeating with the third, fourth, etc. until we have a list of
         // pours that leads to our original gamestate being solved (i.e. having an unknown color on top somewhere)
         let mut solutions_by_pour = group_solutions_by_pour(solutions.into_iter(), 0);
-        let mut pours = VecDeque::new();
+        let mut pours = Vec::new();
         let mut solutions_sharing_prefix = 0;
         loop {
             //first, see if applying these pours to our initial gamestate results in a solution we can return
@@ -139,7 +139,7 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
             }
             if let Some((pour, solutions)) = most_common_move.take() {
                 solutions_sharing_prefix = solutions.len();
-                pours.push_back(pour.clone());
+                pours.push(pour.clone());
                 //we now need to reset solutions_by_pour to contain solutions by their next pour
                 solutions_by_pour = group_solutions_by_pour(solutions.into_iter(), pours.len());
             } else {
