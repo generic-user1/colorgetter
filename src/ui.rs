@@ -224,7 +224,11 @@ impl Ui {
             if is_finished {
                 out.queue(Clear(ClearType::All))?.queue(Print(
                     if let Some((_, stats)) = state.borrow_result().unwrap() {
-                        format!("Found path to next color. {} possible states checked, {} solutions found, {} started with this path.", stats.possible_states_checked, stats.solutions_found, stats.solutions_sharing_prefix)
+                        format!("Found path to next color. {} possible state{} checked, {} solution{} found, {} started with this path.", 
+                        stats.possible_states_checked, if stats.possible_states_checked == 1 {""} else {"s"},
+                        stats.solutions_found, if stats.solutions_found == 1 {""} else {"s"},
+                        stats.solutions_sharing_prefix
+                    )
                     } else {
                         "No path to next color found; reset game before continuing".to_owned()
                     }
