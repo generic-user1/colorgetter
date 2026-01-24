@@ -11,12 +11,35 @@ use std::{
 
 const DEFAULT_THREADCOUNT: NonZeroUsize = NonZeroUsize::new(4).unwrap();
 
+/// Statistics regarding confidence in [try_demystify_next_step]'s result
+#[derive(Default)]
+pub struct DemystifyNextStepStats {
+    /// The number of possible [KnownGameState](crate::gamestate::KnownGameState)s that
+    /// were checked for a solution.
+    pub possible_states_checked: usize,
+
+    /// The number of possible [KnownGameState](crate::gamestate::KnownGameState)s that
+    /// were solved in order to find the next step. This will always be less than or equal to `possible_states_checked`.
+    pub solutions_found: usize,
+
+    /// The number of possible [KnownGameState](crate::gamestate::KnownGameState)s whose
+    /// solutions start with the provided `next_step`. This will always be less than or equal to `solutions_found`.
+    /// The higher this number is, the more confidence there can be in the `next_step` being of good quality.
+    pub solutions_sharing_prefix: usize
+}
+
 /// Try to find a [Solution] for the given [PartialGameState] that leads to revealing a new unknown color unit
 /// while using a prediction technique to try and prevent dead-ends. Similar to [Solution::try_new], will return [None]
 /// if no [Solution] can be found.
+///
+/// This returns the found [Solution] along with an instance of [DemystifyNextStepStats] so the level of confidence
+/// in the answer can be communicated
 pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
     gamestate_to_solve: &'a PartialGameState<MAX_BCOUNT, B_MAX_CAP>
-) -> Option<Solution<'a, PartialGameState<MAX_BCOUNT, B_MAX_CAP>>> {
+) -> Option<(
+    Solution<'a, PartialGameState<MAX_BCOUNT, B_MAX_CAP>>,
+    DemystifyNextStepStats
+)> {
     // this is the number of possible gamestates we'll sample and try to solve
     // in theory, the bigger this number, the more accurate our predictions will
     // be and the better we'll be at avoiding dead ends.
@@ -79,19 +102,29 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
             solutions.push(solution);
         }
 
+        let total_solutions_found = solutions.len();
+
         // we want to find the most common first pours, so we'll organize all solutions by their first pour,
         // pick the most common pour to add to our pours vec, remove all solutions that didn't have that first pour,
         // and then repeat with the second pour. we'll keep repeating with the third, fourth, etc. until we have a list of
         // pours that leads to our original gamestate being solved (i.e. having an unknown color on top somewhere)
         let mut solutions_by_pour = group_solutions_by_pour(solutions.into_iter(), 0);
         let mut pours = VecDeque::new();
+        let mut solutions_sharing_prefix = 0;
         loop {
             //first, see if applying these pours to our initial gamestate results in a solution we can return
             //if it does, return now.
             if let Ok(solution) =
                 Solution::try_from_parts(gamestate_to_solve, pours.iter().cloned())
             {
-                return Some(solution);
+                return Some((
+                    solution,
+                    DemystifyNextStepStats {
+                        possible_states_checked: possible_gamestates.len(),
+                        solutions_found: total_solutions_found,
+                        solutions_sharing_prefix
+                    }
+                ));
             }
 
             let mut most_common_move: Option<(Pour, Vec<Solution<'_, _>>)> = None;
@@ -105,6 +138,7 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
                 }
             }
             if let Some((pour, solutions)) = most_common_move.take() {
+                solutions_sharing_prefix = solutions.len();
                 pours.push_back(pour.clone());
                 //we now need to reset solutions_by_pour to contain solutions by their next pour
                 solutions_by_pour = group_solutions_by_pour(solutions.into_iter(), pours.len());
@@ -117,7 +151,7 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
     //if we reach here, we couldn't generate possible gamestates
     //this means our prediction technique can't work, so we fall back to using the simple method of just
     //finding any path to the next color with no regard for dead ends
-    Solution::try_new(gamestate_to_solve, 0)
+    Solution::try_new(gamestate_to_solve, 0).map(|s| (s, DemystifyNextStepStats::default()))
 }
 
 /// Given some iterator over Solutions and a Pour index, builds a HashMap where keys

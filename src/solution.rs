@@ -7,7 +7,7 @@ use bimap::BiHashMap;
 use crate::gamestate::{Pour, PourError, SolvableGameState};
 
 mod demystify;
-pub use demystify::try_demystify_next_step;
+pub use demystify::{try_demystify_next_step, DemystifyNextStepStats};
 /// Represents the state of a solution finding algorithm
 struct SolutionState<GamestateT: SolvableGameState> {
     pub all_gamestates: BiHashMap<usize, GamestateT>,

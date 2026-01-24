@@ -212,7 +212,8 @@ impl Ui {
     ) -> Result<Option<Solution<'a, PartialGameState<MAX_BCOUNT, B_MAX_CAP>>>, UiRunError> {
         let inner_gs = gs.clone();
         let mut state = WaitScreenState::new(move || {
-            try_demystify_next_step(&inner_gs).map(|solution| solution.take_pours())
+            try_demystify_next_step(&inner_gs)
+                .map(|(solution, stats)| (solution.take_pours(), stats))
         });
 
         let mut out = stdout();
@@ -222,10 +223,10 @@ impl Ui {
             out.queue(MoveTo(0, 0))?;
             if is_finished {
                 out.queue(Clear(ClearType::All))?.queue(Print(
-                    if state.borrow_result().unwrap().is_some() {
-                        "Found path to next color"
+                    if let Some((_, stats)) = state.borrow_result().unwrap() {
+                        format!("Found path to next color. {} possible states checked, {} solutions found, {} started with this path.", stats.possible_states_checked, stats.solutions_found, stats.solutions_sharing_prefix)
                     } else {
-                        "No path to next color found; reset game before continuing"
+                        "No path to next color found; reset game before continuing".to_owned()
                     }
                 ))?;
             } else {
@@ -242,7 +243,7 @@ impl Ui {
                 let should_exit = state.handle_event(event::read()?)?;
 
                 if should_exit {
-                    let solution = state.take_result().map(|pours| {
+                    let solution = state.take_result().map(|(pours, _)| {
                         Solution::try_from_parts(gs, pours).expect("solution wasn't valid")
                     });
                     return Ok(solution);
