@@ -2,6 +2,7 @@
 
 use std::{
     io::{self, stdout, Write},
+    iter,
     marker::PhantomData,
     sync::Mutex,
     time::Duration
@@ -145,8 +146,7 @@ impl Ui {
             }
 
             //try to find a solution to this PartialGameState - this will be a partial state with at least one unknown color on top
-            let found_solution = self.next_color_wait_loop(&working_gs)?;
-            if let Some(found_solution) = found_solution {
+            if let Some(found_solution) = self.next_color_wait_loop(&working_gs)? {
                 self.solution_viewer_loop(&found_solution)?;
                 let pours = found_solution.take_pours();
 
@@ -160,6 +160,17 @@ impl Ui {
                     working_gs = pour
                         .try_apply(&working_gs)
                         .expect("invalid pour from solution");
+                }
+                // if last_source_idx was never set, (probably because the gamestate was solved
+                // from the get-go and the solution was a no-op), we'll try to use the first bottle
+                // with an unknown unit on top as a fallback
+                if last_source_idx.is_none() {
+                    for (idx, bottle) in working_gs.bottles.iter().enumerate() {
+                        if bottle.get_top_color() == Some(PartialColoredWaterUnit::UnknownColor) {
+                            last_source_idx = Some(idx);
+                            break;
+                        }
+                    }
                 }
 
                 working_gs = self.setup_menu_loop_inner(Some(working_gs), last_source_idx)?;
@@ -210,6 +221,11 @@ impl Ui {
         &self,
         gs: &'a PartialGameState<MAX_BCOUNT, B_MAX_CAP>
     ) -> Result<Option<Solution<'a, PartialGameState<MAX_BCOUNT, B_MAX_CAP>>>, UiRunError> {
+        //if our given gamestate is already solved, exit early and skip the expensive try_demystify_next_step call
+        if gs.is_solved() {
+            return Ok(Some(Solution::try_from_parts(gs, iter::empty()).unwrap()));
+        }
+
         let inner_gs = gs.clone();
         let mut state = WaitScreenState::new(move || {
             try_demystify_next_step(&inner_gs)
