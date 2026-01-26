@@ -1,20 +1,26 @@
 use std::path::PathBuf;
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use colorgetter::{
-    gamestate::{load_partial_gamestate_from_file, GameStateLoadError, PseudoPartialGameState},
-    solution::{auto_demystify, Solution},
+    gamestate::{load_partial_gamestate_from_file, GameStateLoadError},
     ui::{Ui, UiCreationError, UiRunError}
 };
 
+mod demystification_test;
+use demystification_test::demystification_test;
+
 fn main() -> Result<(), AppError> {
     let args = Args::parse();
-
-    if args.test_demystification {
-        let gamestate_file_path = args.gamestate_file.unwrap();
-        demystification_test(gamestate_file_path)
-    } else {
-        solve(args.gamestate_file, args.save_demystified)
+    match args.action.unwrap_or_default() {
+        Action::Solve {
+            gamestate_file,
+            save_demystified
+        } => solve(gamestate_file, save_demystified),
+        Action::TestDemystification {
+            gamestate_file,
+            verbose,
+            num_repeats
+        } => demystification_test(gamestate_file, num_repeats, verbose)
     }
 }
 
@@ -41,64 +47,59 @@ fn solve(gamestate_file_path: Option<PathBuf>, save_demystified: bool) -> Result
     Ok(())
 }
 
-/// Run the demystification test
-fn demystification_test(gamestate_file_path: PathBuf) -> Result<(), AppError> {
-    let initial_gamestate = load_partial_gamestate_from_file::<15, 15>(&gamestate_file_path)?
-        .try_into()
-        .or(Err(AppError::GameStateHadUnknownUnits))?;
-
-    let auto_demystify_result =
-        auto_demystify(PseudoPartialGameState::new(initial_gamestate), true);
-
-    let is_current_solvable = Solution::try_new(&auto_demystify_result.current_state, 0).is_some();
-    println!(
-        "Demystification took {} step(s) and required {} reset(s)",
-        auto_demystify_result.step_count, auto_demystify_result.reset_count
-    );
-    println!(
-        "Spent {:?} finding demystification next-steps",
-        auto_demystify_result.total_demystification_time
-    );
-    println!(
-        "{} pour(s) used as part of demystification",
-        auto_demystify_result.total_pour_count
-    );
-    if is_current_solvable {
-        println!("Final state is solvable!")
-    } else {
-        println!(
-            "Final state is not solvable, requiring 1 additional reset for a total of {} reset(s)",
-            auto_demystify_result.reset_count + 1
-        );
-    }
-    Ok(())
-}
-
 #[derive(Parser)]
 #[command(version, about)]
 struct Args {
-    /// Path to a saved game state to solve. The game state editor will be initialized
-    /// to this state if it is provided. If not provided, the editor will be initialized
-    /// to an empty state.
-    #[arg(short, long, value_name = "FILE_PATH")]
-    gamestate_file: Option<PathBuf>,
+    #[command(subcommand)]
+    action: Option<Action>
+}
 
-    /// Whether to save a copy of the initial gamestate after demystifying.
-    /// If this is present, a save dialog will be shown immediately after demystifying,
-    /// but before the actual solution is found and run.
-    ///
-    /// This will likely be removed as an option in the future.
-    #[arg(short, long, conflicts_with = "test_demystification")]
-    save_demystified: bool,
+#[derive(Subcommand, Clone)]
+enum Action {
+    /// Solve a given game state
+    Solve {
+        /// Path to a saved game state to solve. The game state may have a mix of known and unknown colors.
+        /// The game state editor will be initialized to this state if it is provided. If not provided,
+        /// the editor will be initialized to an empty state.
+        #[arg(short, long, value_name = "FILE_PATH")]
+        gamestate_file: Option<PathBuf>,
 
-    /// Activates demystification testing. If this is set, the "-g"/"--gamestate-file"
-    /// must be used, and must point to a gamestate file with no unknown colors. This will
-    /// convert the gamestate to a partial gamestate, automatically demystify and solve it,
-    /// and print statistics on how long the process took and how many resets were needed.
-    ///
-    /// This will likely be removed as an option in the future.
-    #[arg(short, long, requires = "gamestate_file")]
-    test_demystification: bool
+        /// Whether to save a copy of the initial gamestate after demystifying.
+        /// If this is present, a save dialog will be shown immediately after demystifying,
+        /// but before the actual solution is found and run.
+        ///
+        /// This will likely be removed as an option in the future.
+        #[arg(short, long)]
+        save_demystified: bool
+    },
+
+    /// Test and print statistics about demystification
+    TestDemystification {
+        /// Path to a saved game state to test demystification with.
+        /// The game state must only have known colors.
+        /// The state that gets demystified will be this state with all colors
+        /// not on top of their respective bottles set to unknown.
+        #[arg(short, long, value_name = "FILE_PATH")]
+        gamestate_file: PathBuf,
+
+        /// Whether to print information about demystification test as each test is running
+        /// or only the summary after each test finishes.
+        #[arg(short, long)]
+        verbose: bool,
+
+        /// Number of times to repeat the demystification test with the same state.
+        /// If less than 1, will be interpreted as 1.
+        #[arg(short, long, default_value_t = 1)]
+        num_repeats: usize
+    }
+}
+impl Default for Action {
+    fn default() -> Self {
+        Action::Solve {
+            gamestate_file: None,
+            save_demystified: false
+        }
+    }
 }
 
 /// Reasons the application may fail with an error

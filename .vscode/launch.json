@@ -38,6 +38,7 @@
                 }
             },
             "args": [
+                "solve",
                 "-g",
                 "./saved_gamestate.json"
             ],

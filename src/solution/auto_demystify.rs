@@ -6,17 +6,22 @@ use crate::{
     bottle::{Bottle, BottleSampleResult},
     colored_water::PartialColoredWaterUnit,
     gamestate::{GameState, KnownGameState, PartialGameState, PseudoPartialGameState},
-    solution::try_demystify_next_step
+    solution::{try_demystify_next_step, Solution}
 };
 
 /// The result of [auto_demystify]
 #[derive(Debug)]
 pub struct AutoDemystificationResult<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> {
-    /// The [DemystificationResult::current_state] after running the auto-demystify process.
+    /// The [DemystificationResult::current_state](crate::ui::DemystificationResult::current_state)
+    /// after running the auto-demystify process.
     ///
-    /// Note that the [DemystificationResult::initial_state] isn't provided, since it will be identical
+    /// Note that the [DemystificationResult::initial_state](crate::ui::DemystificationResult::initial_state)
+    /// isn't provided, since it will be identical
     /// to calling [PseudoPartialGameState::known] on the originally provided [PseudoPartialGameState]
     pub current_state: KnownGameState<MAX_BCOUNT, B_MAX_CAP>,
+
+    /// Whether the `current_state` can be solved
+    pub current_state_solvable: bool,
 
     /// The number of resets that were needed in order to complete demystification
     pub reset_count: usize,
@@ -67,8 +72,11 @@ pub fn auto_demystify<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
                 "calculated state as known did not match actual as known"
             );
 
+            let current_state_solvable = Solution::try_new(&working_state_as_known, 0).is_some();
+
             return AutoDemystificationResult {
                 current_state: working_state_as_known,
+                current_state_solvable,
                 reset_count,
                 step_count,
                 total_pour_count,
