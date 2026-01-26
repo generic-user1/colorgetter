@@ -6,7 +6,7 @@ use crate::{
 };
 
 mod save_menu;
-use save_menu::{save_menu_loop, SaveError};
+pub(super) use save_menu::save_menu_loop;
 
 use crossterm::{
     cursor::{MoveDown, MoveRight, MoveToColumn},
@@ -15,10 +15,7 @@ use crossterm::{
     QueueableCommand
 };
 use heapless;
-use std::{
-    io::{self, ErrorKind},
-    num::NonZeroUsize
-};
+use std::{io, num::NonZeroUsize};
 
 /// Data used for the 'specific bottle' mode of the setup menu
 struct SpecificBottleData {
@@ -33,7 +30,7 @@ struct SpecificBottleData {
 pub(super) struct SetupMenuState<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> {
     pub gs: PartialGameState<MAX_BCOUNT, B_MAX_CAP>,
     c_state: SetupCursorState,
-    file_saved_path: Option<Result<String, SaveError>>,
+    file_saved_path: Option<String>,
     specific_bottle_data: Option<SpecificBottleData>
 }
 
@@ -157,18 +154,7 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT,
             ContentStyle::new()
         };
         let save_prompt_text = match self.file_saved_path.as_ref() {
-            Some(Ok(x)) => format!("Saved to \"{}\"", x),
-            Some(Err(e)) => match e {
-                SaveError::IOError(e) => match e.kind() {
-                    ErrorKind::AlreadyExists => {
-                        "Failed to save file due to given file path already being in use".to_owned()
-                    }
-                    _ => format!("Failed to save file due to IOError: {:?}", e)
-                },
-                SaveError::SerializationError(e) => {
-                    format!("Failed to save file due to SerializationError: {:?}", e)
-                }
-            },
+            Some(saved_path) => format!("Saved to \"{}\"", saved_path),
             None => "Save to File".to_owned()
         };
         ostream.queue(PrintStyledContent(StyledContent::new(

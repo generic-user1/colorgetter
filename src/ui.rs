@@ -25,7 +25,8 @@ use crate::{
     bottle::{Bottle, BottleSampleResult},
     colored_water::PartialColoredWaterUnit,
     gamestate::{GameState, KnownGameState, PartialGameState, SolvableGameState},
-    solution::{try_demystify_next_step, Solution}
+    solution::{try_demystify_next_step, Solution},
+    ui::setup_menu::save_menu_loop
 };
 
 static UI_EXISTS: Mutex<bool> = Mutex::new(false);
@@ -298,6 +299,19 @@ impl Ui {
             return Ok(initial_state_solution);
         }
         Ok(None)
+    }
+
+    /// Runs a loop that displays a dialog for saving a demystified state
+    ///
+    /// Will save the [DemystificationResult::initial_state] to whatever file path the user chooses,
+    /// unless the user chooses to cancel (in which case, nothing is saved).
+    ///
+    /// Returns the file path saved to, or None if the user chose to cancel.
+    pub fn save_demystified<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
+        &self,
+        result_to_save: &DemystificationResult<MAX_BCOUNT, B_MAX_CAP>
+    ) -> Result<Option<String>, UiRunError> {
+        save_menu_loop(&result_to_save.initial_state)
     }
 
     /// Runs a loop that handles display and input while the given [KnownGameState] is solved

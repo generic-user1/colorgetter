@@ -10,16 +10,14 @@ use serde::Serialize;
 
 use std::{
     fs::File,
-    io::{self, stdout, Write}
+    io::{self, stdout, ErrorKind, Write}
 };
 
-/// Runs a loop that displays the menu for saving a [GameState](crate::gamestate::GameState) or [PartialGameState](crate::gamestate::PartialGameState).
+/// Runs a loop that displays the menu for saving a [KnownGameState](crate::gamestate::KnownGameState) or [PartialGameState](crate::gamestate::PartialGameState).
 ///
 /// Technically, can be used for saving anything that implements [Serialize], though it's specifically meant for (and used for) game states.
 /// Returns the file path saved to, or None if the menu was exited without saving.
-pub(super) fn save_menu_loop<T: Serialize>(
-    gs: &T
-) -> Result<Option<Result<String, SaveError>>, UiRunError> {
+pub(crate) fn save_menu_loop<T: Serialize>(gs: &T) -> Result<Option<String>, UiRunError> {
     let mut state = SaveMenuState::new(gs);
     loop {
         let mut out = stdout();
@@ -27,9 +25,14 @@ pub(super) fn save_menu_loop<T: Serialize>(
         state.queue_display(&mut out)?;
         out.flush()?;
         match state.handle_event(event::read()?)? {
-            SaveMenuEventResult::SaveAndExit => {
-                break Ok(Some(state.save_gamestate()));
-            }
+            SaveMenuEventResult::SaveAndExit => match state.save_gamestate() {
+                Ok(filepath) => {
+                    break Ok(Some(filepath));
+                }
+                Err(e) => {
+                    state.update_err_msg(e);
+                }
+            },
             SaveMenuEventResult::Exit => {
                 break Ok(None);
             }
@@ -42,7 +45,8 @@ pub(super) fn save_menu_loop<T: Serialize>(
 pub(super) struct SaveMenuState<'a, T: Serialize> {
     pub gs: &'a T,
     filepath: Vec<char>,
-    c_state: SaveCursorState
+    c_state: SaveCursorState,
+    last_err_msg: String
 }
 
 /// Represents the cursor position in the save menu
@@ -61,15 +65,28 @@ impl<'a, T: Serialize> SaveMenuState<'a, T> {
         SaveMenuState {
             gs,
             filepath: DEFAULT_PATH.chars().collect(),
-            c_state: SaveCursorState::FileName(DEFAULT_PATH.len())
+            c_state: SaveCursorState::FileName(DEFAULT_PATH.len()),
+            last_err_msg: "".to_string()
         }
     }
 
+    pub fn update_err_msg(&mut self, err: SaveError) {
+        self.last_err_msg = err.to_message()
+    }
+    pub fn clear_err_msg(&mut self) {
+        self.last_err_msg = "".to_string()
+    }
+
     pub fn queue_display<U: QueueableCommand>(&self, ostream: &mut U) -> io::Result<()> {
-        ostream
-            .queue(MoveDown(1))?
-            .queue(MoveToColumn(0))?
-            .queue(Print("File path: "))?;
+        ostream.queue(MoveDown(1))?.queue(MoveToColumn(0))?;
+
+        if !self.last_err_msg.is_empty() {
+            ostream
+                .queue(Print(format!("Error: {}", self.last_err_msg)))?
+                .queue(MoveDown(2))?
+                .queue(MoveToColumn(0))?;
+        }
+        ostream.queue(Print("File path: "))?;
 
         let fname_str: String = self.filepath.iter().collect();
 
@@ -129,6 +146,9 @@ impl<'a, T: Serialize> SaveMenuState<'a, T> {
 
     pub fn handle_event(&mut self, event: Event) -> Result<SaveMenuEventResult, UiRunError> {
         if let Event::Key(event) = event {
+            if event.kind == KeyEventKind::Press && !self.last_err_msg.is_empty() {
+                self.clear_err_msg();
+            }
             match event {
                 KeyEvent {
                     code: KeyCode::Char('c'),
@@ -277,9 +297,10 @@ impl<'a, T: Serialize> SaveMenuState<'a, T> {
     }
 
     /// Attempts to save current gamestate. Note that this will refuse to write to a file that already exists.
-    /// Consumes the save menu, and returns the file path saved to
-    pub fn save_gamestate(self) -> Result<String, SaveError> {
-        let fname_str: String = self.filepath.into_iter().collect();
+    ///
+    /// Returns the file path saved to if saving was successful
+    pub fn save_gamestate(&self) -> Result<String, SaveError> {
+        let fname_str: String = self.filepath.iter().collect();
         let outfile = File::create_new(&fname_str)?;
         serde_json::to_writer(outfile, &self.gs)?;
 
@@ -308,6 +329,22 @@ pub(crate) enum SaveError {
     /// Couldn't write file/other IO error related to file interaction
     /// Note that this does not include IO errors related to console interaction
     IOError(io::Error)
+}
+impl SaveError {
+    /// Returns a human-readable error message representing this SaveError
+    pub fn to_message(&self) -> String {
+        match self {
+            SaveError::IOError(e) => match e.kind() {
+                ErrorKind::AlreadyExists => {
+                    "Failed to save file due to given file path already being in use".to_owned()
+                }
+                _ => format!("Failed to save file due to IOError: {:?}", e)
+            },
+            SaveError::SerializationError(e) => {
+                format!("Failed to save file due to SerializationError: {:?}", e)
+            }
+        }
+    }
 }
 impl From<serde_json::Error> for SaveError {
     fn from(value: serde_json::Error) -> Self {

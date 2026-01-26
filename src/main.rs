@@ -14,12 +14,12 @@ fn main() -> Result<(), AppError> {
         let gamestate_file_path = args.gamestate_file.unwrap();
         demystification_test(gamestate_file_path)
     } else {
-        solve(args.gamestate_file)
+        solve(args.gamestate_file, args.save_demystified)
     }
 }
 
 /// Run the solver Ui
-fn solve(gamestate_file_path: Option<PathBuf>) -> Result<(), AppError> {
+fn solve(gamestate_file_path: Option<PathBuf>, save_demystified: bool) -> Result<(), AppError> {
     let ui = Ui::try_new()?;
 
     let initial_game_state = if let Some(game_state_file_path) = gamestate_file_path {
@@ -31,7 +31,9 @@ fn solve(gamestate_file_path: Option<PathBuf>) -> Result<(), AppError> {
     let pgs = ui.setup_menu_loop::<15, 15>(initial_game_state)?;
 
     let demystified = ui.demystifier_loop(pgs)?;
-
+    if save_demystified {
+        ui.save_demystified(&demystified)?;
+    }
     let solution = ui.demystified_result_solution_finding_loop(&demystified)?;
     if let Some(solution) = solution {
         ui.solution_viewer_loop(&solution)?;
@@ -80,6 +82,14 @@ struct Args {
     /// to an empty state.
     #[arg(short, long, value_name = "FILE_PATH")]
     gamestate_file: Option<PathBuf>,
+
+    /// Whether to save a copy of the initial gamestate after demystifying.
+    /// If this is present, a save dialog will be shown immediately after demystifying,
+    /// but before the actual solution is found and run.
+    ///
+    /// This will likely be removed as an option in the future.
+    #[arg(short, long, conflicts_with = "test_demystification")]
+    save_demystified: bool,
 
     /// Activates demystification testing. If this is set, the "-g"/"--gamestate-file"
     /// must be used, and must point to a gamestate file with no unknown colors. This will
