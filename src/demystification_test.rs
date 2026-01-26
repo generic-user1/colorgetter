@@ -40,6 +40,10 @@ pub fn demystification_test(
             prefix, auto_demystify_result.total_demystification_time
         );
         println!(
+            "{}{:?} max single-step duration",
+            prefix, auto_demystify_result.max_demystification_time
+        );
+        println!(
             "{}{} pour(s)",
             prefix, auto_demystify_result.total_pour_count
         );
@@ -76,12 +80,24 @@ pub fn demystification_test(
             .map(|x| x.total_demystification_time)
             .sum::<Duration>()
             .div_f64(results.len() as f64);
+        let avg_max_time = results
+            .iter()
+            .map(|x| x.max_demystification_time)
+            .sum::<Duration>()
+            .div_f64(results.len() as f64);
+        let overall_max_time = results.iter().map(|x| x.max_demystification_time).max();
 
         // print aggregate stats
         println!("Averages:");
         println!("\t{:.2} step(s)", avg_step_count,);
         println!("\t{:.2} reset(s)", avg_reset_count);
         println!("\t{:?} search duration", avg_time);
+        print!("\t{:?} max single-step duration", avg_max_time);
+        if let Some(overall_max_time) = overall_max_time {
+            println!(" (overall max seen: {:?})", overall_max_time);
+        } else {
+            println!();
+        }
         println!("\t{:.2} pour(s)", avg_pour_count);
         println!(
             "\t{} of {} final states solvable ({:.2}%)",

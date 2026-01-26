@@ -33,7 +33,10 @@ pub struct AutoDemystificationResult<const MAX_BCOUNT: usize, const B_MAX_CAP: u
     pub total_pour_count: usize,
 
     /// The total amount of time spent generating demystification next-steps
-    pub total_demystification_time: Duration
+    pub total_demystification_time: Duration,
+
+    /// The largest amount of time spent generating any single demystification next-step
+    pub max_demystification_time: Duration
 }
 
 /// Automatically run the demystification process on a given [PseudoPartialGameState] and
@@ -60,6 +63,7 @@ pub fn auto_demystify<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
     let mut step_count = 0;
     let mut total_pour_count = 0;
     let mut total_demystification_time = Duration::default();
+    let mut max_demystification_time = Duration::default();
 
     loop {
         //first thing we do: if the working state can be converted into a known state, do the conversion and return.
@@ -80,7 +84,8 @@ pub fn auto_demystify<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
                 reset_count,
                 step_count,
                 total_pour_count,
-                total_demystification_time
+                total_demystification_time,
+                max_demystification_time
             };
         }
 
@@ -89,6 +94,9 @@ pub fn auto_demystify<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
         let demystify_next_step = try_demystify_next_step(&working_gs);
         let demystification_duration = demystification_start.elapsed();
         total_demystification_time += demystification_duration;
+        if demystification_duration > max_demystification_time {
+            max_demystification_time = demystification_duration
+        }
         step_count += 1;
         if print_progress {
             println!(
