@@ -24,7 +24,7 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>
         let mut as_partial: PartialGameState<_, _> = gs.clone().into();
         for bottle in as_partial.bottles.iter_mut() {
             if let Some(top_content_idx) = bottle.get_top_content_idx() {
-                for c_idx in 0..top_content_idx.saturating_sub(1) {
+                for c_idx in 0..top_content_idx {
                     bottle
                         .try_set_color(c_idx, Some(PartialColoredWaterUnit::UnknownColor))
                         .expect("setting a color to unknown failed when it shouldn't");

@@ -2,28 +2,60 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use colorgetter::{
-    gamestate::{load_partial_gamestate_from_file, GameStateLoadError},
+    gamestate::{
+        load_gamestate_from_file, load_partial_gamestate_from_file, GameStateLoadError,
+        PseudoPartialGameState
+    },
+    solution::{auto_demystify, Solution},
     ui::{Ui, UiCreationError, UiRunError}
 };
 
 fn main() -> Result<(), AppError> {
     let args = Args::parse();
 
-    let ui = Ui::try_new()?;
+    if args.test_demystification {
+        let gamestate_file_path = args.gamestate_file.ok_or(AppError::MissingGameState)?;
+        let initial_gamestate = load_gamestate_from_file::<15, 15>(&gamestate_file_path)?;
 
-    let initial_game_state = if let Some(game_state_file_path) = args.gamestate_file {
-        Some(load_partial_gamestate_from_file(&game_state_file_path)?)
+        let auto_demystify_result =
+            auto_demystify(PseudoPartialGameState::new(initial_gamestate), true);
+
+        let is_current_solvable =
+            Solution::try_new(&auto_demystify_result.current_state, 0).is_some();
+        println!(
+            "Demystification took {} step(s) and required {} reset(s)",
+            auto_demystify_result.step_count, auto_demystify_result.reset_count
+        );
+        println!(
+            "Spent {:?} finding demystification next-steps",
+            auto_demystify_result.total_demystification_time
+        );
+        println!(
+            "{} pour(s) used as part of demystification",
+            auto_demystify_result.total_pour_count
+        );
+        if is_current_solvable {
+            println!("Final state is solvable!")
+        } else {
+            println!("Final state is not solvable, requiring 1 additional reset for a total of {} reset(s)", auto_demystify_result.reset_count + 1);
+        }
     } else {
-        None
-    };
+        let ui = Ui::try_new()?;
 
-    let pgs = ui.setup_menu_loop::<15, 15>(initial_game_state)?;
+        let initial_game_state = if let Some(game_state_file_path) = args.gamestate_file {
+            Some(load_partial_gamestate_from_file(&game_state_file_path)?)
+        } else {
+            None
+        };
 
-    let demystified = ui.demystifier_loop(pgs)?;
+        let pgs = ui.setup_menu_loop::<15, 15>(initial_game_state)?;
 
-    let solution = ui.demystified_result_solution_finding_loop(&demystified)?;
-    if let Some(solution) = solution {
-        ui.solution_viewer_loop(&solution)?;
+        let demystified = ui.demystifier_loop(pgs)?;
+
+        let solution = ui.demystified_result_solution_finding_loop(&demystified)?;
+        if let Some(solution) = solution {
+            ui.solution_viewer_loop(&solution)?;
+        }
     }
 
     Ok(())
@@ -36,12 +68,25 @@ struct Args {
     /// to this state if it is provided. If not provided, the editor will be initialized
     /// to an empty state.
     #[arg(short, long, value_name = "FILE_PATH")]
-    gamestate_file: Option<PathBuf>
+    gamestate_file: Option<PathBuf>,
+
+    /// Activates demystification testing. If this is set, the "-g"/"--gamestate-file"
+    /// must be used, and must point to a gamestate file with no unknown colors. This will
+    /// convert the gamestate to a partial gamestate, automatically demystify and solve it,
+    /// and print statistics on how long the process took and how many resets were needed.
+    ///
+    /// This will likely be removed as an option in the future.
+    #[arg(short, long)]
+    test_demystification: bool
 }
 
 /// Reasons the application may fail with an error
 #[derive(Debug)]
 enum AppError {
+    /// Demystification testing was requested, but no [KnownGameState](colorgetter::gamestate::KnownGameState) file was provided
+    #[allow(dead_code)]
+    MissingGameState,
+
     /// An initial [PartialGameState](colorgetter::gamestate::PartialGameState) file was provided, but couldn't be loaded
     #[allow(dead_code)]
     GameStateLoad(GameStateLoadError),

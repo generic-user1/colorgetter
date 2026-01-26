@@ -8,6 +8,10 @@ use crate::gamestate::{Pour, PourError, SolvableGameState};
 
 mod demystify;
 pub use demystify::{try_demystify_next_step, DemystifyNextStepStats};
+
+mod auto_demystify;
+pub use auto_demystify::{auto_demystify, AutoDemystificationResult};
+
 /// Represents the state of a solution finding algorithm
 struct SolutionState<GamestateT: SolvableGameState> {
     pub all_gamestates: BiHashMap<usize, GamestateT>,
