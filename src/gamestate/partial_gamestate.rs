@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 mod collapse;
 mod pseudo_partial_gamestate;
-pub use pseudo_partial_gamestate::PseudoPartialGameState;
+pub use pseudo_partial_gamestate::{PseudoPartialGameState, PseudoPartialGameStateError};
 
 /// The state a particular game is in, including [PartialBottle]s
 /// instead of regular [KnownBottle](crate::bottle::KnownBottle)s

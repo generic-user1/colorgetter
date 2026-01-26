@@ -4,7 +4,9 @@ mod known_gamestate;
 pub use known_gamestate::KnownGameState;
 
 mod partial_gamestate;
-pub use partial_gamestate::{PartialGameState, PseudoPartialGameState};
+pub use partial_gamestate::{
+    PartialGameState, PseudoPartialGameState, PseudoPartialGameStateError
+};
 
 mod gamestate_trait;
 pub use gamestate_trait::{GameState, SolvableGameState};
