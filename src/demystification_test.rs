@@ -44,7 +44,7 @@ pub fn demystification_test(
             prefix, auto_demystify_result.total_pour_count
         );
         println!(
-            "{}solvable: {}",
+            "{}final state solvable: {}",
             prefix,
             if auto_demystify_result.current_state_solvable {
                 "yes"
