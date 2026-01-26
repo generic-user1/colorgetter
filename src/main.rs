@@ -12,51 +12,63 @@ fn main() -> Result<(), AppError> {
 
     if args.test_demystification {
         let gamestate_file_path = args.gamestate_file.unwrap();
-        let initial_gamestate = load_partial_gamestate_from_file::<15, 15>(&gamestate_file_path)?
-            .try_into()
-            .or(Err(AppError::GameStateHadUnknownUnits))?;
-
-        let auto_demystify_result =
-            auto_demystify(PseudoPartialGameState::new(initial_gamestate), true);
-
-        let is_current_solvable =
-            Solution::try_new(&auto_demystify_result.current_state, 0).is_some();
-        println!(
-            "Demystification took {} step(s) and required {} reset(s)",
-            auto_demystify_result.step_count, auto_demystify_result.reset_count
-        );
-        println!(
-            "Spent {:?} finding demystification next-steps",
-            auto_demystify_result.total_demystification_time
-        );
-        println!(
-            "{} pour(s) used as part of demystification",
-            auto_demystify_result.total_pour_count
-        );
-        if is_current_solvable {
-            println!("Final state is solvable!")
-        } else {
-            println!("Final state is not solvable, requiring 1 additional reset for a total of {} reset(s)", auto_demystify_result.reset_count + 1);
-        }
+        demystification_test(gamestate_file_path)
     } else {
-        let ui = Ui::try_new()?;
-
-        let initial_game_state = if let Some(game_state_file_path) = args.gamestate_file {
-            Some(load_partial_gamestate_from_file(&game_state_file_path)?)
-        } else {
-            None
-        };
-
-        let pgs = ui.setup_menu_loop::<15, 15>(initial_game_state)?;
-
-        let demystified = ui.demystifier_loop(pgs)?;
-
-        let solution = ui.demystified_result_solution_finding_loop(&demystified)?;
-        if let Some(solution) = solution {
-            ui.solution_viewer_loop(&solution)?;
-        }
+        solve(args.gamestate_file)
     }
+}
 
+/// Run the solver Ui
+fn solve(gamestate_file_path: Option<PathBuf>) -> Result<(), AppError> {
+    let ui = Ui::try_new()?;
+
+    let initial_game_state = if let Some(game_state_file_path) = gamestate_file_path {
+        Some(load_partial_gamestate_from_file(&game_state_file_path)?)
+    } else {
+        None
+    };
+
+    let pgs = ui.setup_menu_loop::<15, 15>(initial_game_state)?;
+
+    let demystified = ui.demystifier_loop(pgs)?;
+
+    let solution = ui.demystified_result_solution_finding_loop(&demystified)?;
+    if let Some(solution) = solution {
+        ui.solution_viewer_loop(&solution)?;
+    }
+    Ok(())
+}
+
+/// Run the demystification test
+fn demystification_test(gamestate_file_path: PathBuf) -> Result<(), AppError> {
+    let initial_gamestate = load_partial_gamestate_from_file::<15, 15>(&gamestate_file_path)?
+        .try_into()
+        .or(Err(AppError::GameStateHadUnknownUnits))?;
+
+    let auto_demystify_result =
+        auto_demystify(PseudoPartialGameState::new(initial_gamestate), true);
+
+    let is_current_solvable = Solution::try_new(&auto_demystify_result.current_state, 0).is_some();
+    println!(
+        "Demystification took {} step(s) and required {} reset(s)",
+        auto_demystify_result.step_count, auto_demystify_result.reset_count
+    );
+    println!(
+        "Spent {:?} finding demystification next-steps",
+        auto_demystify_result.total_demystification_time
+    );
+    println!(
+        "{} pour(s) used as part of demystification",
+        auto_demystify_result.total_pour_count
+    );
+    if is_current_solvable {
+        println!("Final state is solvable!")
+    } else {
+        println!(
+            "Final state is not solvable, requiring 1 additional reset for a total of {} reset(s)",
+            auto_demystify_result.reset_count + 1
+        );
+    }
     Ok(())
 }
 
