@@ -2,10 +2,7 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use colorgetter::{
-    gamestate::{
-        load_gamestate_from_file, load_partial_gamestate_from_file, GameStateLoadError,
-        PseudoPartialGameState
-    },
+    gamestate::{load_partial_gamestate_from_file, GameStateLoadError, PseudoPartialGameState},
     solution::{auto_demystify, Solution},
     ui::{Ui, UiCreationError, UiRunError}
 };
@@ -14,8 +11,10 @@ fn main() -> Result<(), AppError> {
     let args = Args::parse();
 
     if args.test_demystification {
-        let gamestate_file_path = args.gamestate_file.ok_or(AppError::MissingGameState)?;
-        let initial_gamestate = load_gamestate_from_file::<15, 15>(&gamestate_file_path)?;
+        let gamestate_file_path = args.gamestate_file.unwrap();
+        let initial_gamestate = load_partial_gamestate_from_file::<15, 15>(&gamestate_file_path)?
+            .try_into()
+            .or(Err(AppError::GameStateHadUnknownUnits))?;
 
         let auto_demystify_result =
             auto_demystify(PseudoPartialGameState::new(initial_gamestate), true);
@@ -76,16 +75,16 @@ struct Args {
     /// and print statistics on how long the process took and how many resets were needed.
     ///
     /// This will likely be removed as an option in the future.
-    #[arg(short, long)]
+    #[arg(short, long, requires = "gamestate_file")]
     test_demystification: bool
 }
 
 /// Reasons the application may fail with an error
 #[derive(Debug)]
 enum AppError {
-    /// Demystification testing was requested, but no [KnownGameState](colorgetter::gamestate::KnownGameState) file was provided
+    /// Demystification testing was requested, but provided file had a [PartialGameState](colorgetter::gamestate::PartialGameState)
     #[allow(dead_code)]
-    MissingGameState,
+    GameStateHadUnknownUnits,
 
     /// An initial [PartialGameState](colorgetter::gamestate::PartialGameState) file was provided, but couldn't be loaded
     #[allow(dead_code)]
