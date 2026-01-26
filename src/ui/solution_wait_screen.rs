@@ -47,10 +47,10 @@ impl<T: Send + 'static> WaitScreenState<T> {
     ///
     /// Will update internal state to set finish time and store job result if this call determines that the search is newly finished.
     pub fn check_finished(&mut self) -> bool {
-        if self.waiting_thread_handle.is_some() {
+        if let Some(waiting_thread_handle) = self.waiting_thread_handle.as_ref() {
             // if our thread handle still exists, the thread is either still running,
             // or has completed and we just haven't processed the result.
-            if self.waiting_thread_handle.as_ref().unwrap().is_finished() {
+            if waiting_thread_handle.is_finished() {
                 // take the thread handle out of the option, replacing the `self.waiting_thread_handle` with None
                 let handle = self.waiting_thread_handle.take().unwrap();
                 // pull the result out of the handle, put it into self.thread_result
