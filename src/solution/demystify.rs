@@ -44,8 +44,8 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
     // in theory, the bigger this number, the more accurate our predictions will
     // be and the better we'll be at avoiding dead ends.
     // however, it also makes the function take a considerable amount more time
-    // to run, and increasing may yield diminishing returns to some extent.
-    const SAMPLE_SIZE: usize = 100;
+    // to run, and increasing yields diminishing returns to some extent
+    const SAMPLE_SIZE: usize = 10;
 
     // try to get a sample of possible gamestates
     // if this fails, our prediction technique won't work
@@ -103,6 +103,22 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
         }
 
         let total_solutions_found = solutions.len();
+        if total_solutions_found == 0 {
+            //if we found no solutions, that could be because it's impossible to progress,
+            //because it's possible to progress to another unknown color, but not possible to win,
+            //or because we got unlucky and picked only unwinnable possible states even though there are
+            //winnable states. to cover the second two cases, if we found no solutions, we'll try to find and return
+            //any path to revealing an unknown color, even if it's not part of any solution.
+            if let Some(fallback_solution) = Solution::try_new(gamestate_to_solve, 0) {
+                return Some((
+                    fallback_solution,
+                    DemystifyNextStepStats {
+                        possible_states_checked: possible_gamestates.len(),
+                        ..Default::default()
+                    }
+                ));
+            }
+        }
 
         // we want to find the most common first pours, so we'll organize all solutions by their first pour,
         // pick the most common pour to add to our pours vec, remove all solutions that didn't have that first pour,

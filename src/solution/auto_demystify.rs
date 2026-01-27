@@ -104,14 +104,17 @@ pub fn auto_demystify<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
                 step_count, demystification_duration
             );
         }
-        if let Some((found_solution, _)) = demystify_next_step {
+        if let Some((found_solution, stats)) = demystify_next_step {
             let pours = found_solution.take_pours();
             total_pour_count += pours.len();
             if print_progress {
                 println!(
-                    "Demystification step {} applied {} pour(s)",
+                    "Demystification step {} applied {} pour(s); {} state(s) analyzed, {} solution(s) found, {} shared prefix",
                     step_count,
-                    pours.len()
+                    pours.len(),
+                    stats.possible_states_checked,
+                    stats.solutions_found,
+                    stats.solutions_sharing_prefix
                 )
             }
 
