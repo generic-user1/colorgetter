@@ -55,30 +55,36 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> PartialGameState<MAX_BCOUN
                 // we'll end up in an infinite loop here.
                 let state_count = max_count.min(perm_count.try_into().unwrap_or(max_count));
 
-                let mut found_states = HashSet::with_capacity(state_count);
-                for possible_state in collapse_random_sample_iter(self, permutable) {
-                    found_states.insert(possible_state);
-                    if found_states.len() >= state_count {
+                let mut found_permutations = HashSet::with_capacity(state_count);
+                for permutation in BasicShuffleIter::new(permutable) {
+                    found_permutations.insert(permutation);
+                    if found_permutations.len() >= state_count {
                         break;
                     }
                 }
-                found_states.into_iter().collect()
+                found_permutations
+                    .into_iter()
+                    .map(|p| permutation_as_known(self.clone(), p.into_iter()))
+                    .collect()
             } else {
                 //we couldn't calculate a perm count, and so can't guarantee we have at least max_count possible states.
                 //although we almost certainly do have enough states, we want to avoid an infinite loop on the off chance we don't,
                 //so we build in an attempt counter and emergency-bail-out at max_count * 4 iterations. This is almost certainly slower
                 //and isn't guaranteed to return max_count states even if that is possible, but it at least avoids an infinite loop.
-                let mut found_states = HashSet::with_capacity(max_count);
+                let mut found_permutations = HashSet::with_capacity(max_count);
                 let mut iters = 0_u128;
                 let max_iters = (max_count as u128).saturating_mul(4);
-                for possible_state in collapse_random_sample_iter(self, permutable) {
-                    found_states.insert(possible_state);
+                for permutation in BasicShuffleIter::new(permutable) {
+                    found_permutations.insert(permutation);
                     iters += 1;
-                    if found_states.len() >= max_count || iters >= max_iters {
+                    if found_permutations.len() >= max_count || iters >= max_iters {
                         break;
                     }
                 }
-                found_states.into_iter().collect()
+                found_permutations
+                    .into_iter()
+                    .map(|p| permutation_as_known(self.clone(), p.into_iter()))
+                    .collect()
             };
             Some(found_states)
         } else {
@@ -103,7 +109,14 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> PartialGameState<MAX_BCOUN
     ) -> Option<
         impl Iterator<Item = KnownGameState<MAX_BCOUNT, B_MAX_CAP>> + use<'_, MAX_BCOUNT, B_MAX_CAP>
     > {
-        to_permutable(self).map(|permutable| collapse_all_iter(self, permutable.0))
+        to_permutable(self).map(|(permutable, _)| {
+            let length = permutable.len();
+            permutable
+                .into_iter()
+                .permutations(length)
+                .unique()
+                .map(|permutation| permutation_as_known(self.clone(), permutation.into_iter()))
+        })
     }
 
     /// Tries to return an iterator over a random sample of [KnownGameState]s from this [PartialGameState]
@@ -123,40 +136,11 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> PartialGameState<MAX_BCOUN
     ) -> Option<
         impl Iterator<Item = KnownGameState<MAX_BCOUNT, B_MAX_CAP>> + use<'_, MAX_BCOUNT, B_MAX_CAP>
     > {
-        to_permutable(self).map(|permutable| collapse_random_sample_iter(self, permutable.0))
+        to_permutable(self).map(|(permutable, _)| {
+            BasicShuffleIter::new(permutable)
+                .map(|permutation| permutation_as_known(self.clone(), permutation.into_iter()))
+        })
     }
-}
-
-/// Creates the iterator used by [PartialGameState::collapse_all] when given
-/// a [PartialGameState] and the result of calling [to_permutable] on that state.
-///
-/// `as_permutable` must have come from calling [to_permutable] on `gs`;
-/// bad things will happen if there's a mismatch, and a mismatch is not checked for.
-/// This is only really useful on its own as an implementation detail of [PartialGameState::collapse].
-fn collapse_all_iter<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
-    gs: &PartialGameState<MAX_BCOUNT, B_MAX_CAP>,
-    as_permutable: Vec<ColoredWaterUnit>
-) -> impl Iterator<Item = KnownGameState<MAX_BCOUNT, B_MAX_CAP>> + use<'_, MAX_BCOUNT, B_MAX_CAP> {
-    let length = as_permutable.len();
-    as_permutable
-        .into_iter()
-        .permutations(length)
-        .unique()
-        .map(|permutation| permutation_as_known(gs.clone(), permutation.into_iter()))
-}
-
-/// Creates the iterator used by [PartialGameState::collapse_random_sample] when given
-/// a [PartialGameState] and the result of calling [to_permutable] on that state.
-///
-/// `as_permutable` must have come from calling [to_permutable] on `gs`;
-/// bad things will happen if there's a mismatch, and a mismatch is not checked for.
-/// This is only really useful on its own as an implementation detail of [PartialGameState::collapse].
-fn collapse_random_sample_iter<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
-    gs: &PartialGameState<MAX_BCOUNT, B_MAX_CAP>,
-    as_permutable: Vec<ColoredWaterUnit>
-) -> impl Iterator<Item = KnownGameState<MAX_BCOUNT, B_MAX_CAP>> + use<'_, MAX_BCOUNT, B_MAX_CAP> {
-    BasicShuffleIter::new(as_permutable)
-        .map(|permutation| permutation_as_known(gs.clone(), permutation.into_iter()))
 }
 
 /// Generates a [Vec] of [ColoredWaterUnit]s from a [PartialGameState] and returns
