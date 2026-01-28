@@ -3,6 +3,7 @@
 use std::collections::{HashMap, VecDeque};
 
 use bimap::BiHashMap;
+use rand::seq::SliceRandom;
 
 use crate::gamestate::{Pour, PourError, SolvableGameState};
 
@@ -64,7 +65,18 @@ impl<'a, GamestateT: SolvableGameState> Solution<'a, GamestateT> {
     pub fn try_new(base_gamestate: &'a GamestateT, max_depth: u8) -> Option<Self> {
         let mut solution_state = SolutionState::new(base_gamestate);
 
-        Self::find_solving_pours(&mut solution_state, max_depth, true).map(|pours| Self {
+        Self::find_solving_pours(&mut solution_state, max_depth, true, false).map(|pours| Self {
+            base_gamestate,
+            pours
+        })
+    }
+
+    /// Similar to [Solution::try_new], but shuffles the order that possible pours are checked in. The solution returned is still guaranteed
+    /// to take the fewest possible number of pours, but the specific pours will be randomized.
+    pub fn try_new_rand(base_gamestate: &'a GamestateT, max_depth: u8) -> Option<Self> {
+        let mut solution_state = SolutionState::new(base_gamestate);
+
+        Self::find_solving_pours(&mut solution_state, max_depth, true, true).map(|pours| Self {
             base_gamestate,
             pours
         })
@@ -102,11 +114,15 @@ impl<'a, GamestateT: SolvableGameState> Solution<'a, GamestateT> {
     /// When `cutoff` is true, the function will stop generating gamestates that would go beyond `max_depth`.
     /// When `cutoff` is false, the function will generate gamestates that are one layer beyond `max_depth`, but won't evaluate
     /// them; instead returning after it has evaluated the final layer.
+    ///
+    /// The `rand` setting, if true, will randomize the order of pours checked on each layer. If false, no randomization is applied.
     fn find_solving_pours(
         state: &mut SolutionState<GamestateT>,
         max_depth: u8,
-        cutoff: bool
+        cutoff: bool,
+        rand: bool
     ) -> Option<VecDeque<Pour>> {
+        let mut rng = if rand { Some(rand::rng()) } else { None };
         while let Some((layer_idx, gamestate_to_try_idx)) = state.gamestates_to_try.pop_front() {
             let gamestate_to_try = state
                 .all_gamestates
@@ -153,6 +169,10 @@ impl<'a, GamestateT: SolvableGameState> Solution<'a, GamestateT> {
                 // since some of the valid pours may be functional duplicates, we need to dedup here
                 new_pours.sort_by(|a, b| a.0.cmp(&b.0));
                 new_pours.dedup_by(|a, b| a.0.eq(&b.0));
+
+                if let Some(rng) = &mut rng {
+                    new_pours.shuffle(rng);
+                }
 
                 // second, since we no longer need gamestate_to_try, we're no longer borrowing immutably from all_gamestates;
                 // so we are allowed to borrow mutably from it (required to add new gamestates to it)

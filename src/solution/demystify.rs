@@ -32,5 +32,5 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
     Solution<'a, PartialGameState<MAX_BCOUNT, B_MAX_CAP>>,
     DemystifyNextStepStats
 )> {
-    Solution::try_new(gamestate_to_solve, 0).map(|s| (s, DemystifyNextStepStats::default()))
+    Solution::try_new_rand(gamestate_to_solve, 0).map(|s| (s, DemystifyNextStepStats::default()))
 }
