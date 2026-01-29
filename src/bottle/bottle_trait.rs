@@ -185,6 +185,22 @@ pub trait Bottle {
         None
     }
 
+    /// Return whether this bottle has any content (i.e. there is some index for which [Bottle::sample_content_at] returns [Some]).
+    ///
+    /// A return value of `true` indicates there is some content, and a return value of `false` indicates there is no content.
+    ///
+    /// **Note**: The provided default implementation of this is iterative; it will call
+    /// [Bottle::sample_content_at] repeatedly, up to [Bottle::capacity] times in the worst case.
+    /// You should consider implementing this manually for better performance.
+    fn is_empty(&self) -> bool {
+        for idx in 0..self.capacity() {
+            if self.sample_content_at(idx).is_some() {
+                return false;
+            }
+        }
+        true
+    }
+
     /// Sample the color (known or unknown) in this bottle at the given index. If there is no color
     /// at that index for any reason, return [None].
     fn sample_content_at(&self, idx: usize) -> Option<PartialColoredWaterUnit> {

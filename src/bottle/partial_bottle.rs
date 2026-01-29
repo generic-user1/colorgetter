@@ -390,6 +390,10 @@ impl<const MAX_CAP: usize> Bottle for PartialBottle<MAX_CAP> {
         overall_content_len.checked_sub(1)
     }
 
+    fn is_empty(&self) -> bool {
+        self.content.is_empty() && self.unknown_count < 1
+    }
+
     fn try_pour_in(
         &mut self,
         content_to_pour: ColoredWaterRun

@@ -257,6 +257,10 @@ impl<const MAX_CAP: usize> Bottle for KnownBottle<MAX_CAP> {
         self.get_content().len().checked_sub(1)
     }
 
+    fn is_empty(&self) -> bool {
+        self.content.is_empty()
+    }
+
     fn try_pour_in(
         &mut self,
         content_to_pour: ColoredWaterRun
