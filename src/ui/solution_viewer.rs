@@ -4,20 +4,24 @@ use crossterm::{
     style::Print,
     QueueableCommand
 };
-use std::{io, num::NonZeroUsize};
+use std::{io, num::NonZeroUsize, ops::Deref};
 
 use super::UiRunError;
 use crate::{
-    gamestate::{Pour, SolvableGameState},
+    gamestate::{GameState, Pour, SolvableGameState},
     solution::Solution
 };
 
-pub(super) struct SolutionViewerState<'a, 'b, GamestateT: SolvableGameState> {
+pub(super) struct SolutionViewerState<'a, T>
+where
+    T: Deref,
+    <T as Deref>::Target: SolvableGameState
+{
     /// The [Solution] this SolutionViewerState is meant to display
     ///
     /// Private so we can ensure the Solution never changes, which is important so we can
     /// ensure our current_pour_idx is always valid.
-    solution: &'b Solution<'a, GamestateT>,
+    solution: &'a Solution<T>,
 
     /// The index of the pour within our solution's valid pours that's currently being displayed.
     ///
@@ -26,15 +30,19 @@ pub(super) struct SolutionViewerState<'a, 'b, GamestateT: SolvableGameState> {
     current_pour_idx: Option<usize>
 }
 
-impl<'a, 'b, GamestateT: SolvableGameState> SolutionViewerState<'a, 'b, GamestateT> {
-    pub fn new(solution: &'b Solution<'a, GamestateT>) -> SolutionViewerState<'a, 'b, GamestateT> {
+impl<'a, T> SolutionViewerState<'a, T>
+where
+    T: Deref,
+    <T as Deref>::Target: SolvableGameState
+{
+    pub fn new(solution: &'a Solution<T>) -> SolutionViewerState<'a, T> {
         SolutionViewerState {
             solution,
             current_pour_idx: None
         }
     }
 
-    pub fn queue_display<T: QueueableCommand>(&self, ostream: &mut T) -> io::Result<()> {
+    pub fn queue_display<U: QueueableCommand>(&self, ostream: &mut U) -> io::Result<()> {
         let (displayed_gs, displayed_pour) = self.get_displayed_state_and_pour();
         if let Some(displayed_pour) = displayed_pour {
             ostream.queue(Print(format!(
@@ -102,7 +110,7 @@ impl<'a, 'b, GamestateT: SolvableGameState> SolutionViewerState<'a, 'b, Gamestat
 
     /// Returns the currently displayed [GameState] and, if it exists, the [Pour] used to get to the
     /// current [GameState] from the previous one.
-    fn get_displayed_state_and_pour(&self) -> (GamestateT, Option<&Pour>) {
+    fn get_displayed_state_and_pour(&self) -> (T::Target, Option<&Pour>) {
         if let Some(display_pour_idx) = self.current_pour_idx {
             let mut working_gs = self.solution.get_base_gamestate().clone();
             for (current_pour_idx, current_pour) in self.solution.get_pours().iter().enumerate() {

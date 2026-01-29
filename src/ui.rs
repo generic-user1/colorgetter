@@ -4,11 +4,10 @@ use std::{
     io::{self, stdout, Write},
     iter,
     marker::PhantomData,
+    ops::{Deref, Drop},
     sync::Mutex,
     time::Duration
 };
-
-use core::ops::Drop;
 
 use crossterm::{
     cursor::{Hide, MoveDown, MoveTo, MoveToColumn, Show},
@@ -221,7 +220,7 @@ impl Ui {
     fn next_color_wait_loop<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
         &self,
         gs: &'a PartialGameState<MAX_BCOUNT, B_MAX_CAP>
-    ) -> Result<Option<Solution<'a, PartialGameState<MAX_BCOUNT, B_MAX_CAP>>>, UiRunError> {
+    ) -> Result<Option<Solution<&'a PartialGameState<MAX_BCOUNT, B_MAX_CAP>>>, UiRunError> {
         //if our given gamestate is already solved, exit early and skip the expensive try_demystify_next_step call
         if gs.is_solved() {
             return Ok(Some(Solution::try_from_parts(gs, iter::empty()).unwrap()));
@@ -288,7 +287,7 @@ impl Ui {
     >(
         &self,
         result_to_solve: &'a DemystificationResult<MAX_BCOUNT, B_MAX_CAP>
-    ) -> Result<Option<Solution<'b, KnownGameState<MAX_BCOUNT, B_MAX_CAP>>>, UiRunError> {
+    ) -> Result<Option<Solution<&'b KnownGameState<MAX_BCOUNT, B_MAX_CAP>>>, UiRunError> {
         let current_state_solution =
             self.solution_finding_loop_inner(&result_to_solve.current_state, true)?;
         if current_state_solution.is_some() {
@@ -324,7 +323,7 @@ impl Ui {
     pub fn solution_finding_loop<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
         &self,
         gamestate_to_solve: &'a KnownGameState<MAX_BCOUNT, B_MAX_CAP>
-    ) -> Result<Option<Solution<'a, KnownGameState<MAX_BCOUNT, B_MAX_CAP>>>, UiRunError> {
+    ) -> Result<Option<Solution<&'a KnownGameState<MAX_BCOUNT, B_MAX_CAP>>>, UiRunError> {
         self.solution_finding_loop_inner(gamestate_to_solve, false)
     }
 
@@ -333,7 +332,7 @@ impl Ui {
         &self,
         gamestate_to_solve: &'a GamestateT,
         prompt_for_reset: bool
-    ) -> Result<Option<Solution<'a, GamestateT>>, UiRunError> {
+    ) -> Result<Option<Solution<&'a GamestateT>>, UiRunError> {
         let inner_gamestate_to_solve = gamestate_to_solve.clone();
         let mut state = WaitScreenState::new(move || {
             Solution::try_new(&inner_gamestate_to_solve, 0).map(|x| x.take_pours())
@@ -377,10 +376,11 @@ impl Ui {
     }
 
     /// Runs a loop that displays the viewer for a [Solution]
-    pub fn solution_viewer_loop<GamestateT: SolvableGameState>(
-        &self,
-        solution: &Solution<GamestateT>
-    ) -> Result<(), UiRunError> {
+    pub fn solution_viewer_loop<T>(&self, solution: &Solution<T>) -> Result<(), UiRunError>
+    where
+        T: Deref,
+        <T as Deref>::Target: SolvableGameState
+    {
         let mut state = SolutionViewerState::new(solution);
         loop {
             let mut out = stdout();

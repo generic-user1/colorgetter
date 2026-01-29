@@ -1,10 +1,13 @@
 //! Implementation of a [Solution]
 
-use std::collections::{HashMap, VecDeque};
+use std::{
+    collections::{HashMap, VecDeque},
+    ops::Deref
+};
 
 use bimap::BiHashMap;
 
-use crate::gamestate::{Pour, PourError, SolvableGameState};
+use crate::gamestate::{GameState, Pour, PourError, SolvableGameState};
 
 mod demystify;
 pub use demystify::{try_demystify_next_step, DemystifyNextStepStats};
@@ -50,19 +53,27 @@ impl<GamestateT: SolvableGameState> SolutionState<GamestateT> {
 /// Although represented as Pours, each Pour is guaranteed
 /// to be valid for the result of the previous Pour (except the first Pour, which
 /// is instead guaranteed to be valid for the provided `base_gamestate`)
-pub struct Solution<'a, GamestateT: SolvableGameState> {
-    base_gamestate: &'a GamestateT,
+pub struct Solution<T>
+where
+    T: Deref,
+    <T as Deref>::Target: SolvableGameState
+{
+    base_gamestate: T,
     pours: VecDeque<Pour>
 }
 
-impl<'a, GamestateT: SolvableGameState> Solution<'a, GamestateT> {
+impl<T> Solution<T>
+where
+    T: Deref,
+    <T as Deref>::Target: SolvableGameState
+{
     /// Try to find and return the shortest possible Solution to the given GameState. If no solution can be found, return `None`.
     ///
     /// Will search for solutions with as many as `max_depth` pours. If no solution is found within that many pours, returns `None`.
     /// Setting `max_depth` to 0 disables the limit; will search for possible solutions that are arbitrarily long until a valid solution is found,
     /// all possible solutions have been checked without a valid solution, or the program panics due to the computer being out of memory.
-    pub fn try_new(base_gamestate: &'a GamestateT, max_depth: u8) -> Option<Self> {
-        let mut solution_state = SolutionState::new(base_gamestate);
+    pub fn try_new(base_gamestate: T, max_depth: u8) -> Option<Self> {
+        let mut solution_state = SolutionState::new(&base_gamestate as &T::Target);
 
         Self::find_solving_pours(&mut solution_state, max_depth, true).map(|pours| Self {
             base_gamestate,
@@ -71,9 +82,9 @@ impl<'a, GamestateT: SolvableGameState> Solution<'a, GamestateT> {
     }
 
     /// Try to create a [Solution] given a base [SolvableGameState] to solve and some iterable of [Pour]s to apply in order
-    pub fn try_from_parts<T: IntoIterator<Item = Pour>>(
-        base_gamestate: &'a GamestateT,
-        pours: T
+    pub fn try_from_parts<U: IntoIterator<Item = Pour>>(
+        base_gamestate: T,
+        pours: U
     ) -> Result<Self, SolutionFromPartsError> {
         let mut working_gs = base_gamestate.clone();
         let mut owned_pours: VecDeque<Pour> = VecDeque::new();
@@ -103,7 +114,7 @@ impl<'a, GamestateT: SolvableGameState> Solution<'a, GamestateT> {
     /// When `cutoff` is false, the function will generate gamestates that are one layer beyond `max_depth`, but won't evaluate
     /// them; instead returning after it has evaluated the final layer.
     fn find_solving_pours(
-        state: &mut SolutionState<GamestateT>,
+        state: &mut SolutionState<T::Target>,
         max_depth: u8,
         cutoff: bool
     ) -> Option<VecDeque<Pour>> {
@@ -139,7 +150,7 @@ impl<'a, GamestateT: SolvableGameState> Solution<'a, GamestateT> {
             if layer_idx < max_depth || max_depth == 0 || !cutoff {
                 // the following could theoretically be done in one loop, but borrow rules prevent this.
                 // instead of just cloning, we first create a vector of all new entries that will go into all_gamestates
-                let mut new_pours: Vec<(GamestateT, Pour)> = Vec::new();
+                let mut new_pours: Vec<(T::Target, Pour)> = Vec::new();
                 for valid_pour in gamestate_to_try.iter_pours() {
                     let new_gs = valid_pour.apply();
                     // only check this gamestate if we haven't already checked it
@@ -175,8 +186,8 @@ impl<'a, GamestateT: SolvableGameState> Solution<'a, GamestateT> {
         None
     }
 
-    pub fn get_base_gamestate(&self) -> &GamestateT {
-        self.base_gamestate
+    pub fn get_base_gamestate(&self) -> &T::Target {
+        &self.base_gamestate
     }
 
     pub fn get_pours(&self) -> &VecDeque<Pour> {

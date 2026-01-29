@@ -1,11 +1,12 @@
 //! utilities for demystification of [PartialGameState]s into [KnownGameState](crate::gamestate::KnownGameState)s
 
 use super::*;
-use crate::gamestate::PartialGameState;
-use crossbeam_channel;
+use crate::gamestate::{KnownGameState, PartialGameState};
+use crossbeam_channel::{self, Receiver, Sender};
 use std::{
     collections::{hash_map::Entry, HashMap},
     num::NonZeroUsize,
+    sync::Arc,
     thread::{self, available_parallelism}
 };
 
@@ -34,10 +35,10 @@ pub struct DemystifyNextStepStats {
 ///
 /// This returns the found [Solution] along with an instance of [DemystifyNextStepStats] so the level of confidence
 /// in the answer can be communicated
-pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
-    gamestate_to_solve: &'a PartialGameState<MAX_BCOUNT, B_MAX_CAP>
+pub fn try_demystify_next_step<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
+    gamestate_to_solve: &PartialGameState<MAX_BCOUNT, B_MAX_CAP>
 ) -> Option<(
-    Solution<'a, PartialGameState<MAX_BCOUNT, B_MAX_CAP>>,
+    Solution<&PartialGameState<MAX_BCOUNT, B_MAX_CAP>>,
     DemystifyNextStepStats
 )> {
     let mut pours = Vec::new();
@@ -45,42 +46,84 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
     let mut possible_states_checked = 0;
     let mut solutions_found = 0;
     let mut solutions_sharing_prefix = 0;
-    loop {
-        //if we have a solution, return it
-        if let Ok(solution) = Solution::try_from_parts(gamestate_to_solve, pours.iter().cloned()) {
-            return Some((
-                solution,
-                DemystifyNextStepStats {
-                    possible_states_checked,
-                    solutions_found,
-                    solutions_sharing_prefix
-                }
-            ));
-        }
 
-        //try finding the immediate next pour
-        if let Some((next_pour, stats)) = get_next_pour(&working_gs) {
-            //apply this pour to our working_gs and add it to our list of pours
-            working_gs = next_pour.try_apply(&working_gs).unwrap();
-            pours.push(next_pour);
-            //add our stats
-            possible_states_checked += stats.possible_states_checked;
-            solutions_found += stats.solutions_found;
-            solutions_sharing_prefix += stats.solutions_sharing_prefix;
-        } else {
-            //no immediate next pour could be found, and since we reached this point, we know that our current pours
-            //aren't a solution. therefore, we must bail out and try the fallback strategy
-            break;
+    //thread count is either the number of available threads or a default of 4 if available_parallelism fails
+    let thread_count: usize = available_parallelism()
+        .unwrap_or(DEFAULT_THREADCOUNT)
+        .into();
+
+    //create some channels to send unsolved gamestates from our main thread to workers, and send solutions
+    //from our workers to our main thread
+    let (send_work, recv_work) = crossbeam_channel::unbounded();
+    let (send_solution, recv_solution) = crossbeam_channel::unbounded();
+
+    thread::scope(|s| {
+        //define a closure that will produce our next pour.
+        //this would be a seperate function entirely, but due to lifetime rules, it
+        //must instead be defined here, inside the thread scope.
+
+        //spawn worker threads
+        for _ in 0..thread_count {
+            //each worker gets its own work receiver and result sender
+            let thread_recv: Receiver<Arc<KnownGameState<MAX_BCOUNT, B_MAX_CAP>>> =
+                recv_work.clone();
+            let thread_send = send_solution.clone();
+            s.spawn(move || {
+                //while a work sender exists, wait to get a new gamestate and then solve it
+                while let Ok(possible_gamestate) = thread_recv.recv() {
+                    //try finding a solution and send whatever we get back through the solution sender
+                    thread_send
+                        .send(Solution::try_new(possible_gamestate, 0))
+                        .expect("main thread hung up before worker completed");
+                }
+            });
         }
-    }
-    //if we reach this point, no next pour could be found. as a fallback, try just generating any path to the next unknown color.
-    Solution::try_new(gamestate_to_solve, 0).map(|s| (s, DemystifyNextStepStats::default()))
+        //drop our copy of the result sender so that only the workers' copies will remain
+        drop(send_solution);
+
+        loop {
+            //if we have a solution, return it
+            if let Ok(solution) =
+                Solution::try_from_parts(gamestate_to_solve, pours.iter().cloned())
+            {
+                drop(send_work);
+                return Some((
+                    solution,
+                    DemystifyNextStepStats {
+                        possible_states_checked,
+                        solutions_found,
+                        solutions_sharing_prefix
+                    }
+                ));
+            }
+
+            //try finding the immediate next pour
+            if let Some((next_pour, stats)) = get_next_pour(&working_gs, &send_work, &recv_solution)
+            {
+                //apply this pour to our working_gs and add it to our list of pours
+                working_gs = next_pour.try_apply(&working_gs).unwrap();
+                pours.push(next_pour);
+                //add our stats
+                possible_states_checked += stats.possible_states_checked;
+                solutions_found += stats.solutions_found;
+                solutions_sharing_prefix += stats.solutions_sharing_prefix;
+            } else {
+                //no immediate next pour could be found, and since we reached this point, we know that our current pours
+                //aren't a solution. therefore, we must try the backup strategy: try just generating any path to the next unknown color.
+                drop(send_work);
+                return Solution::try_new(gamestate_to_solve, 0)
+                    .map(|s| (s, DemystifyNextStepStats::default()));
+            }
+        }
+    }) //if we reach this point, no next pour could be found. as a fallback, try just generating any path to the next unknown color.
 }
 
 /// Find the immediate next pour for the given [PartialGameState] that will be used as part of a [Solution].
 /// Returns [None] if no next pour can be found.
 fn get_next_pour<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
-    gamestate_to_solve: &PartialGameState<MAX_BCOUNT, B_MAX_CAP>
+    gamestate_to_solve: &PartialGameState<MAX_BCOUNT, B_MAX_CAP>,
+    send_work: &Sender<Arc<KnownGameState<MAX_BCOUNT, B_MAX_CAP>>>,
+    recv_solution: &Receiver<Option<Solution<Arc<KnownGameState<MAX_BCOUNT, B_MAX_CAP>>>>>
 ) -> Option<(Pour, DemystifyNextStepStats)> {
     // this is the number of possible gamestates we'll sample and try to solve
     // in theory, the bigger this number, the more accurate our predictions will
@@ -92,56 +135,25 @@ fn get_next_pour<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
     // try to get a sample of possible gamestates
     // if this fails, our prediction technique won't work
     if let Some(possible_gamestates) = gamestate_to_solve.collapse(SAMPLE_SIZE) {
-        // solve all those sample gamestates in multiple threads
-
-        //thread count is either the number of available threads (or a default of 4 if available_parallelism fails),
-        //or the number of gamestates we have to solve, whichever is smaller
-        let thread_count: usize = possible_gamestates.len().min(
-            available_parallelism()
-                .unwrap_or(DEFAULT_THREADCOUNT)
-                .into()
-        );
-        //create some channels to send unsolved gamestates from our main thread to workers, and send solutions
-        //from our workers to our main thread
-        let (send_work, recv_work) = crossbeam_channel::unbounded();
-        let (send_solution, recv_solution) = crossbeam_channel::unbounded();
-
+        let possible_gamestates: Vec<Arc<KnownGameState<MAX_BCOUNT, B_MAX_CAP>>> =
+            possible_gamestates.into_iter().map(Arc::new).collect();
         let mut solutions = Vec::new();
-        thread::scope(|s| {
-            //spawn worker threads
-            for _ in 0..thread_count {
-                //each worker gets its own work receiver and result sender
-                let thread_recv = recv_work.clone();
-                let thread_send = send_solution.clone();
-                s.spawn(move || {
-                    //while a work sender exists, wait to get a new gamestate and then solve it
-                    while let Ok(possible_gamestate) = thread_recv.recv() {
-                        if let Some(solution) = Solution::try_new(possible_gamestate, 0) {
-                            //if we found a solution, send it back through the solution sender
-                            thread_send
-                                .send(solution)
-                                .expect("main thread hung up before worker completed");
-                        }
-                    }
-                });
-            }
 
-            //send all the possible gamestates to the workers
-            for possible_gamestate in possible_gamestates.iter() {
-                send_work
-                    .send(possible_gamestate)
-                    .expect("worker threads hung up before all states processed");
-            }
-
-            //drop the work sender so that threads know there won't be any more work to do.
-            drop(send_work);
-            //drop our copy of the result sender so that only the workers' copies will remain
-            drop(send_solution);
-        });
+        //send all the possible gamestates to the workers
+        for possible_gamestate in possible_gamestates.iter() {
+            send_work
+                .send(possible_gamestate.clone())
+                .expect("worker threads hung up before all states sent");
+        }
 
         //receive all the solutions from the workers
-        while let Ok(solution) = recv_solution.recv() {
-            solutions.push(solution);
+        for _ in 0..possible_gamestates.len() {
+            let solution = recv_solution
+                .recv()
+                .expect("workers hung up before all states processed");
+            if let Some(solution) = solution {
+                solutions.push(solution);
+            }
         }
 
         let total_solutions_found = solutions.len();
@@ -166,7 +178,10 @@ fn get_next_pour<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
 
         // we organize all solutions by their first pour, pick the most common pour, then return it
         let solutions_by_pour = group_solutions_by_pour(solutions.into_iter(), 0);
-        let mut most_common_move: Option<(Pour, Vec<Solution<'_, _>>)> = None;
+        let mut most_common_move: Option<(
+            Pour,
+            Vec<Solution<Arc<KnownGameState<MAX_BCOUNT, B_MAX_CAP>>>>
+        )> = None;
         for (pour, solutions) in solutions_by_pour.into_iter() {
             if let Some((_, other_solutions)) = most_common_move.as_ref() {
                 if solutions.len() > other_solutions.len() {
@@ -208,14 +223,13 @@ fn get_next_pour<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
 /// a HashMap of all solutions in `some_iter` grouped by their 11th pour (the pour at index 10).
 ///
 /// If any Solution has no pour at the given `pour_idx` it is simply not included in the returned HashMap.
-fn group_solutions_by_pour<'a, T, GamestateT: SolvableGameState>(
-    solutions: T,
-    pour_idx: usize
-) -> HashMap<Pour, Vec<Solution<'a, GamestateT>>>
+fn group_solutions_by_pour<T, U>(solutions: T, pour_idx: usize) -> HashMap<Pour, Vec<Solution<U>>>
 where
-    T: Iterator<Item = Solution<'a, GamestateT>>
+    T: Iterator<Item = Solution<U>>,
+    U: Deref,
+    <U as Deref>::Target: SolvableGameState
 {
-    let mut mapping: HashMap<Pour, Vec<Solution<GamestateT>>> = HashMap::new();
+    let mut mapping: HashMap<Pour, Vec<Solution<U>>> = HashMap::new();
     for solution in solutions {
         if let Some(next_pour) = solution.get_pours().get(pour_idx) {
             match mapping.entry(next_pour.clone()) {
