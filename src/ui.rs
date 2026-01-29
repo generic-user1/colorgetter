@@ -241,9 +241,10 @@ impl Ui {
             if is_finished {
                 out.queue(Clear(ClearType::All))?.queue(Print(
                     if let Some((_, stats)) = state.borrow_result().unwrap() {
-                        format!("Found path to next color. {} possible solution{} checked, {:.3} was the max score found", 
+                        format!("Found path to next color. {} possible solution{} checked, {:.3} was the max score found ({} solution{} with this score)", 
                         stats.solutions_checked, if stats.solutions_checked == 1 {""} else {"s"},
                         stats.max_finished_estimate, 
+                        stats.equal_solution_count, if stats.equal_solution_count == 1 {""} else {"s"}
                     )
                     } else {
                         "No path to next color found; reset game before continuing".to_owned()

@@ -11,7 +11,10 @@ pub struct DemystifyNextStepStats {
 
     /// The largest `finished_estimate` found from any of the [Solution]s checked; i.e., the
     /// `finished_estimate` of the returned [Solution]
-    pub max_finished_estimate: f64
+    pub max_finished_estimate: f64,
+
+    /// The number of possible [Solution]s that had the `max_finished_estimate`
+    pub equal_solution_count: usize
 }
 
 /// Try to find a [Solution] for the given [PartialGameState] that leads to revealing a new unknown color unit
@@ -35,6 +38,7 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
     //find the solutions whose end state has the highest finished_estimate
     let mut max_finished_estimate = 0.0;
     let mut max_scoring_solution = None;
+    let mut equal_solution_count = 0;
     for possible_solution in possible_solutions {
         let mut working_gs = gamestate_to_solve.clone();
         for pour in possible_solution.get_pours() {
@@ -44,6 +48,9 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
         if score > max_finished_estimate {
             max_finished_estimate = score;
             max_scoring_solution = Some(possible_solution);
+            equal_solution_count = 1;
+        } else if score == max_finished_estimate {
+            equal_solution_count += 1;
         }
     }
 
@@ -52,7 +59,8 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
             s,
             DemystifyNextStepStats {
                 solutions_checked,
-                max_finished_estimate
+                max_finished_estimate,
+                equal_solution_count
             }
         )
     })
