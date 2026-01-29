@@ -109,12 +109,11 @@ pub fn auto_demystify<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
             total_pour_count += pours.len();
             if print_progress {
                 println!(
-                    "Demystification step {} applied {} pour(s); {} state(s) analyzed, {} solution(s) found, {} shared prefix",
+                    "Demystification step {} applied {} pour(s); {} solutions analyzed, found max score of {:.3}",
                     step_count,
                     pours.len(),
-                    stats.possible_states_checked,
-                    stats.solutions_found,
-                    stats.solutions_sharing_prefix
+                    stats.solutions_checked,
+                    stats.max_finished_estimate
                 )
             }
 
