@@ -17,22 +17,27 @@ struct SolutionState<GamestateT: SolvableGameState> {
     pub all_gamestates: BiHashMap<usize, GamestateT>,
     pub tried_gamestates: HashMap<usize, (usize, Pour)>,
     pub gamestates_to_try: VecDeque<(u8, usize)>,
-    pub finished_gamestate_idxs: HashSet<usize>
+    pub finished_gamestate_idxs: Vec<usize>
 }
 
 impl<GamestateT: SolvableGameState> SolutionState<GamestateT> {
     pub fn get_solving_pour_sequences(&self) -> Vec<VecDeque<Pour>> {
         let mut output = Vec::with_capacity(self.finished_gamestate_idxs.len());
+        //keep track of all the indexes we've seen
+        let mut seen = HashSet::new();
         for gamestate_idx in self.finished_gamestate_idxs.iter() {
-            let mut this_sequence = VecDeque::new();
-            let mut gs_idx = *gamestate_idx;
-            loop {
-                if let Some((source_gs_idx, pour)) = self.tried_gamestates.get(&gs_idx) {
-                    this_sequence.push_front(pour.clone());
-                    gs_idx = *source_gs_idx;
-                } else {
-                    output.push(this_sequence);
-                    break;
+            //if we haven't seen this index before, build a solution from it
+            if seen.insert(*gamestate_idx) {
+                let mut this_sequence = VecDeque::new();
+                let mut gs_idx = *gamestate_idx;
+                loop {
+                    if let Some((source_gs_idx, pour)) = self.tried_gamestates.get(&gs_idx) {
+                        this_sequence.push_front(pour.clone());
+                        gs_idx = *source_gs_idx;
+                    } else {
+                        output.push(this_sequence);
+                        break;
+                    }
                 }
             }
         }
@@ -61,7 +66,7 @@ impl<GamestateT: SolvableGameState> SolutionState<GamestateT> {
             all_gamestates,
             tried_gamestates,
             gamestates_to_try,
-            finished_gamestate_idxs: HashSet::new()
+            finished_gamestate_idxs: Vec::new()
         }
     }
 }
@@ -195,7 +200,7 @@ fn find_solving_pours<T: SolvableGameState>(
             return;
         }
         if gamestate_to_try.is_solved() {
-            state.finished_gamestate_idxs.insert(gamestate_to_try_idx);
+            state.finished_gamestate_idxs.push(gamestate_to_try_idx);
             if max_solution_count > 0 && state.finished_gamestate_idxs.len() >= max_solution_count {
                 return;
             }
