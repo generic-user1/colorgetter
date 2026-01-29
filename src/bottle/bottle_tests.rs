@@ -196,3 +196,16 @@ fn test_bottle_pour_out() {
     assert_eq!(try_pour_result, Err(PourOutError::Empty));
     assert_eq!(test_pour_result, try_pour_result);
 }
+
+#[test]
+fn test_bottle_finished_estimate() {
+    let fully_finished = bottle!([Red, Red, Red, Red], 4, 4);
+    assert_eq!(fully_finished.finished_estimate(), 1.0);
+
+    let midway_finished = bottle!([], 4, 4);
+    assert_eq!(midway_finished.finished_estimate(), 0.5);
+
+    let fully_unfinished: PartialBottle<4> =
+        PartialBottle::try_with_content(&bottle_content!(Red, Green, Blue), 1).unwrap();
+    assert_eq!(fully_unfinished.finished_estimate(), 0.0);
+}
