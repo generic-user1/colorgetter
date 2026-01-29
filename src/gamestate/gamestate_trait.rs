@@ -238,6 +238,26 @@ pub trait GameState: Clone {
     fn iter_pours(&self) -> ValidPourIter<'_, Self> {
         ValidPourIter::new(self)
     }
+
+    /// Estimate how close to being "finished" this GameState is as a value in the range `[0.0, 1.0]`
+    ///
+    /// `1.0` means entirely finished, and `0.0` means entirely unfinished. Note that it is valid
+    /// for the absolute minimum value to be greater than `0.0`, but not valid for the maximum value
+    /// to be less than `1.0`.
+    fn finished_estimate(&self) -> f64 {
+        // the finished estimate for a gamestate is the average of the finished
+        // estimate of all of its non-empty bottles
+        let mut non_empty_bottles: usize = 0;
+        let mut total_score = 0.0;
+        for bottle in self.get_bottles() {
+            if bottle.is_empty() {
+                continue;
+            }
+            non_empty_bottles += 1;
+            total_score += bottle.finished_estimate();
+        }
+        total_score / (non_empty_bottles as f64)
+    }
 }
 
 /// Types representing [GameState]s that a [Solution](crate::solution::Solution) can be found for

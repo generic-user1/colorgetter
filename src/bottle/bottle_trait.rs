@@ -185,6 +185,22 @@ pub trait Bottle {
         None
     }
 
+    /// Return whether this bottle has any content (i.e. there is some index for which [Bottle::sample_content_at] returns [Some]).
+    ///
+    /// A return value of `true` indicates there is some content, and a return value of `false` indicates there is no content.
+    ///
+    /// **Note**: The provided default implementation of this is iterative; it will call
+    /// [Bottle::sample_content_at] repeatedly, up to [Bottle::capacity] times in the worst case.
+    /// You should consider implementing this manually for better performance.
+    fn is_empty(&self) -> bool {
+        for idx in 0..self.capacity() {
+            if self.sample_content_at(idx).is_some() {
+                return false;
+            }
+        }
+        true
+    }
+
     /// Sample the color (known or unknown) in this bottle at the given index. If there is no color
     /// at that index for any reason, return [None].
     fn sample_content_at(&self, idx: usize) -> Option<PartialColoredWaterUnit> {
@@ -197,6 +213,84 @@ pub trait Bottle {
         self.sample_at(idx).try_into().ok()
     }
 
+    /// Estimate how close to being "finished" this bottle is as a value in the range `[0.0, 1.0]`
+    ///
+    /// `1.0` means entirely finished, and `0.0` means entirely unfinished. Note that it is valid
+    /// for the absolute minimum value to be greater than `0.0`, but not valid for the maximum value
+    /// to be less than `1.0`.
+    fn finished_estimate(&self) -> f64 {
+        // we accomplish this by first determining how many pours
+        // it would take to complete this bottle, assuming that:
+        // - every pour out removes the top color run
+        // - every pour in adds one unit of the desired color
+        // - the known color currently at the bottom (if there is one) is the color we want for this bottle
+        // - no two unknown colors are ever the same
+
+        //the number of units at the bottom whose color matches
+        let mut already_done_count = 0_usize;
+        match self.sample_at(0) {
+            BottleSampleResult::KnownColor(c) => {
+                //check how many contiguous units match this color
+                for idx in 0..self.capacity() {
+                    let sample_result = self.sample_at(idx);
+                    if sample_result == BottleSampleResult::KnownColor(c) {
+                        already_done_count += 1;
+                    } else {
+                        break;
+                    }
+                }
+            }
+            BottleSampleResult::UnknownColor => {
+                //we assert that this color isn't the one we want to end on, and
+                //that it doesn't match the next color up
+                already_done_count = 0;
+            }
+            BottleSampleResult::Empty => {
+                //do nothing; leave already_done_count at 0
+            }
+            BottleSampleResult::OutOfBounds => {
+                //bottle has zero capacity so it must be finished
+                return 1.0;
+            }
+        }
+
+        //we now need to detect how many pours it would take to remove all units of non-matching color.
+        //put another way, we need to detect how many color runs there are in the bottle, not including our bottom run
+        let mut run_count = 0_usize;
+        let mut current_run_color: Option<PartialColoredWaterUnit> = None;
+        for idx in already_done_count..self.capacity() {
+            match self.sample_content_at(idx) {
+                Some(PartialColoredWaterUnit::Color(c)) => {
+                    if current_run_color.is_none()
+                        || current_run_color.unwrap() != PartialColoredWaterUnit::Color(c)
+                    {
+                        run_count += 1;
+                        current_run_color = Some(PartialColoredWaterUnit::Color(c))
+                    }
+                }
+                Some(PartialColoredWaterUnit::UnknownColor) => {
+                    //unknown colors are assumed to never match, even other unknowns
+                    run_count += 1;
+                    current_run_color = Some(PartialColoredWaterUnit::UnknownColor);
+                }
+                None => {
+                    //if we hit empty space, we know we're done counting runs
+                    break;
+                }
+            }
+        }
+        //the number of pours needed is the run_count we just calculated plus
+        //the number of units we need to pour in (capacity - already_done_count)
+        let pours_needed = run_count + (self.capacity() - already_done_count);
+
+        //now, we need to transform this number of pours needed into a score
+        //to do that, we'll first turn it into a proportion of the maximum number of
+        //pours to finish a bottle of this size (always `capacity * 2`)
+        let as_proportion = (pours_needed as f64) / ((self.capacity() * 2) as f64);
+
+        //finally, we invert the proportion by subtracting it from 1
+        1.0 - as_proportion
+    }
     /// Attempt to pour a [ColoredWaterRun] into this bottle.
     ///
     /// If this is successful, will return a new [ColoredWaterRun] representing the portion of
