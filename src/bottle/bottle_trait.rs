@@ -213,19 +213,14 @@ pub trait Bottle {
         self.sample_at(idx).try_into().ok()
     }
 
-    /// Estimate how close to being "finished" this bottle is as a value in the range `[0.0, 1.0]`
+    /// Estimate how many pours it would take to finish this bottle.
     ///
-    /// `1.0` means entirely finished, and `0.0` means entirely unfinished. Note that it is valid
-    /// for the absolute minimum value to be greater than `0.0`, but not valid for the maximum value
-    /// to be less than `1.0`.
-    fn finished_estimate(&self) -> f64 {
-        // we accomplish this by first determining how many pours
-        // it would take to complete this bottle, assuming that:
-        // - every pour out removes the top color run
-        // - every pour in adds one unit of the desired color
-        // - the known color currently at the bottom (if there is one) is the color we want for this bottle
-        // - no two unknown colors are ever the same
-
+    /// This is done under a few assumptions:
+    /// - Every pour out removes the entire top color run and is always possible
+    /// - Every pour in adds exactly one unit of the desired color
+    /// - The known color currently at the bottom (if there is one) is the color we want for this bottle
+    /// - No two unknown colors are ever the same
+    fn pours_to_finish_estimate(&self) -> usize {
         //the number of units at the bottom whose color matches
         let mut already_done_count = 0_usize;
         match self.sample_at(0) {
@@ -250,7 +245,7 @@ pub trait Bottle {
             }
             BottleSampleResult::OutOfBounds => {
                 //bottle has zero capacity so it must be finished
-                return 1.0;
+                return 0;
             }
         }
 
@@ -281,9 +276,19 @@ pub trait Bottle {
         }
         //the number of pours needed is the run_count we just calculated plus
         //the number of units we need to pour in (capacity - already_done_count)
-        let pours_needed = run_count + (self.capacity() - already_done_count);
+        run_count + (self.capacity() - already_done_count)
+    }
 
-        //now, we need to transform this number of pours needed into a score
+    /// Estimate how close to being "finished" this bottle is as a value in the range `[0.0, 1.0]`
+    ///
+    /// `1.0` means entirely finished, and `0.0` means entirely unfinished. Note that it is valid
+    /// for the absolute minimum value to be greater than `0.0`, but not valid for the maximum value
+    /// to be less than `1.0`.
+    fn finished_estimate(&self) -> f64 {
+        //first, estimate the number of pours required to finish this bottle
+        let pours_needed = self.pours_to_finish_estimate();
+
+        //transform this number of pours needed into a score
         //to do that, we'll first turn it into a proportion of the maximum number of
         //pours to finish a bottle of this size (always `capacity * 2`)
         let as_proportion = (pours_needed as f64) / ((self.capacity() * 2) as f64);
