@@ -29,6 +29,13 @@ pub struct DemystifyNextStepStats {
     pub solutions_sharing_prefix: usize
 }
 
+// this is the number of possible gamestates we'll sample and try to solve
+// in theory, the bigger this number, the more accurate our predictions will
+// be and the better we'll be at avoiding dead ends.
+// however, it also makes the function take a considerable amount more time
+// to run, and increasing yields diminishing returns to some extent
+const SAMPLE_SIZE: usize = 10;
+
 /// Try to find a [Solution] for the given [PartialGameState] that leads to revealing a new unknown color unit
 /// while using a prediction technique to try and prevent dead-ends. Similar to [Solution::try_new], will return [None]
 /// if no [Solution] can be found.
@@ -47,10 +54,10 @@ pub fn try_demystify_next_step<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
     let mut solutions_found = 0;
     let mut solutions_sharing_prefix = 0;
 
-    //thread count is either the number of available threads or a default of 4 if available_parallelism fails
-    let thread_count: usize = available_parallelism()
-        .unwrap_or(DEFAULT_THREADCOUNT)
-        .into();
+    //thread count is either the number of available threads (or a default of 4 if available_parallelism fails),
+    //or the state sample size, whichever is smaller
+    let thread_count =
+        usize::from(available_parallelism().unwrap_or(DEFAULT_THREADCOUNT)).min(SAMPLE_SIZE);
 
     //create some channels to send unsolved gamestates from our main thread to workers, and send solutions
     //from our workers to our main thread
@@ -125,13 +132,6 @@ fn get_next_pour<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
     send_work: &Sender<Arc<KnownGameState<MAX_BCOUNT, B_MAX_CAP>>>,
     recv_solution: &Receiver<Option<Solution<Arc<KnownGameState<MAX_BCOUNT, B_MAX_CAP>>>>>
 ) -> Option<(Pour, DemystifyNextStepStats)> {
-    // this is the number of possible gamestates we'll sample and try to solve
-    // in theory, the bigger this number, the more accurate our predictions will
-    // be and the better we'll be at avoiding dead ends.
-    // however, it also makes the function take a considerable amount more time
-    // to run, and increasing yields diminishing returns to some extent
-    const SAMPLE_SIZE: usize = 10;
-
     // try to get a sample of possible gamestates
     // if this fails, our prediction technique won't work
     if let Some(possible_gamestates) = gamestate_to_solve.collapse(SAMPLE_SIZE) {
