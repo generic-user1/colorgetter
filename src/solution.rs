@@ -1,6 +1,6 @@
 //! Implementation of a [Solution]
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, VecDeque};
 
 use bimap::BiHashMap;
 
@@ -23,21 +23,17 @@ struct SolutionState<GamestateT: SolvableGameState> {
 impl<GamestateT: SolvableGameState> SolutionState<GamestateT> {
     pub fn get_solving_pour_sequences(&self) -> Vec<VecDeque<Pour>> {
         let mut output = Vec::with_capacity(self.finished_gamestate_idxs.len());
-        //keep track of all the indexes we've seen
-        let mut seen = HashSet::new();
+
         for gamestate_idx in self.finished_gamestate_idxs.iter() {
-            //if we haven't seen this index before, build a solution from it
-            if seen.insert(*gamestate_idx) {
-                let mut this_sequence = VecDeque::new();
-                let mut gs_idx = *gamestate_idx;
-                loop {
-                    if let Some((source_gs_idx, pour)) = self.tried_gamestates.get(&gs_idx) {
-                        this_sequence.push_front(pour.clone());
-                        gs_idx = *source_gs_idx;
-                    } else {
-                        output.push(this_sequence);
-                        break;
-                    }
+            let mut this_sequence = VecDeque::new();
+            let mut gs_idx = *gamestate_idx;
+            loop {
+                if let Some((source_gs_idx, pour)) = self.tried_gamestates.get(&gs_idx) {
+                    this_sequence.push_front(pour.clone());
+                    gs_idx = *source_gs_idx;
+                } else {
+                    output.push(this_sequence);
+                    break;
                 }
             }
         }
