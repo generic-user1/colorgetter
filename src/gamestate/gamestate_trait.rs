@@ -239,24 +239,25 @@ pub trait GameState: Clone {
         ValidPourIter::new(self)
     }
 
-    /// Estimate how close to being "finished" this GameState is as a value in the range `[0.0, 1.0]`
+    /// Estimate how many pours it would take to finish this GameState.
     ///
-    /// `1.0` means entirely finished, and `0.0` means entirely unfinished. Note that it is valid
-    /// for the absolute minimum value to be greater than `0.0` and for the absolute maximum value to be less than `1.0`,
-    /// though it is not valid for the output to be outside of these bounds.
-    fn finished_estimate(&self) -> f64 {
-        // the finished estimate for a gamestate is the average of the finished
-        // estimate of all of its non-empty bottles
-        let mut non_empty_bottles: usize = 0;
-        let mut total_score = 0.0;
+    /// This is done under a few assumptions:
+    /// - Every pour out from any bottle removes the entire top color run and is always possible
+    /// - Every pour into any bottle adds exactly one unit of the desired color
+    /// - The known color currently at the bottom of some bottle (if there is one) is the color we want for that bottle
+    /// - No two unknown colors are ever the same
+    ///
+    /// This is almost certainly not actually how many pours will be required to finish the GameState
+    /// but is useful as a rough estimation of how close to being finished the GameState is (relative
+    /// to the `pours_to_finish_estimate` figure from another GameState).
+    fn pours_to_finish_estimate(&self) -> usize {
+        // the pours_to_finish_estimate for a gamestate is the
+        // sum of the pours_to_finish_estimate for its bottles
+        let mut total_score = 0;
         for bottle in self.get_bottles() {
-            if bottle.is_empty() {
-                continue;
-            }
-            non_empty_bottles += 1;
-            total_score += bottle.finished_estimate();
+            total_score += bottle.pours_to_finish_estimate();
         }
-        total_score / (non_empty_bottles as f64)
+        total_score
     }
 }
 

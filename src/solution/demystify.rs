@@ -9,11 +9,11 @@ pub struct DemystifyNextStepStats {
     /// The number of possible [Solution]s that were evaluated
     pub solutions_checked: usize,
 
-    /// The largest `finished_estimate` found from any of the [Solution]s checked; i.e., the
-    /// `finished_estimate` of the returned [Solution]
-    pub max_finished_estimate: f64,
+    /// The smallest `pours_to_finish_estimate` found from any of the [Solution]s checked; i.e., the
+    /// `pours_to_finish_estimate` of the returned [Solution]
+    pub min_finished_estimate: usize,
 
-    /// The number of possible [Solution]s that had the `max_finished_estimate`
+    /// The number of possible [Solution]s that had the `min_finished_estimate`
     pub equal_solution_count: usize
 }
 
@@ -36,7 +36,7 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
     let solutions_checked = possible_solutions.len();
 
     //find the solutions whose end state has the highest finished_estimate
-    let mut max_finished_estimate = 0.0;
+    let mut min_finished_estimate = usize::MAX;
     let mut max_scoring_solution = None;
     let mut equal_solution_count = 0;
     for possible_solution in possible_solutions {
@@ -44,12 +44,12 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
         for pour in possible_solution.get_pours() {
             working_gs = pour.try_apply(&working_gs).unwrap()
         }
-        let score = working_gs.finished_estimate();
-        if score > max_finished_estimate {
-            max_finished_estimate = score;
+        let score = working_gs.pours_to_finish_estimate();
+        if score < min_finished_estimate {
+            min_finished_estimate = score;
             max_scoring_solution = Some(possible_solution);
             equal_solution_count = 1;
-        } else if score == max_finished_estimate {
+        } else if score == min_finished_estimate {
             equal_solution_count += 1;
         }
     }
@@ -59,7 +59,7 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
             s,
             DemystifyNextStepStats {
                 solutions_checked,
-                max_finished_estimate,
+                min_finished_estimate,
                 equal_solution_count
             }
         )

@@ -220,6 +220,10 @@ pub trait Bottle {
     /// - Every pour in adds exactly one unit of the desired color
     /// - The known color currently at the bottom (if there is one) is the color we want for this bottle
     /// - No two unknown colors are ever the same
+    ///
+    /// This is almost certainly not actually how many pours will be required to finish the bottle,
+    /// but is useful as a rough estimation of how close to being finished the bottle is (relative
+    /// to the `pours_to_finish_estimate` figure from another bottle).
     fn pours_to_finish_estimate(&self) -> usize {
         //the number of units at the bottom whose color matches
         let mut already_done_count = 0_usize;
@@ -279,23 +283,6 @@ pub trait Bottle {
         run_count + (self.capacity() - already_done_count)
     }
 
-    /// Estimate how close to being "finished" this bottle is as a value in the range `[0.0, 1.0]`
-    ///
-    /// `1.0` means entirely finished, and `0.0` means entirely unfinished. Note that it is valid
-    /// for the absolute minimum value to be greater than `0.0` and for the absolute maximum value to be less than `1.0`,
-    /// though it is not valid for the output to be outside of these bounds.
-    fn finished_estimate(&self) -> f64 {
-        //first, estimate the number of pours required to finish this bottle
-        let pours_needed = self.pours_to_finish_estimate();
-
-        //transform this number of pours needed into a score
-        //to do that, we'll first turn it into a proportion of the maximum number of
-        //pours to finish a bottle of this size (always `capacity * 2`)
-        let as_proportion = (pours_needed as f64) / ((self.capacity() * 2) as f64);
-
-        //finally, we invert the proportion by subtracting it from 1
-        1.0 - as_proportion
-    }
     /// Attempt to pour a [ColoredWaterRun] into this bottle.
     ///
     /// If this is successful, will return a new [ColoredWaterRun] representing the portion of
