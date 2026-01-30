@@ -282,8 +282,8 @@ pub trait Bottle {
     /// Estimate how close to being "finished" this bottle is as a value in the range `[0.0, 1.0]`
     ///
     /// `1.0` means entirely finished, and `0.0` means entirely unfinished. Note that it is valid
-    /// for the absolute minimum value to be greater than `0.0`, but not valid for the maximum value
-    /// to be less than `1.0`.
+    /// for the absolute minimum value to be greater than `0.0` and for the absolute maximum value to be less than `1.0`,
+    /// though it is not valid for the output to be outside of these bounds.
     fn finished_estimate(&self) -> f64 {
         //first, estimate the number of pours required to finish this bottle
         let pours_needed = self.pours_to_finish_estimate();
