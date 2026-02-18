@@ -35,9 +35,9 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
     let possible_solutions = find_many_solutions(gamestate_to_solve, 0, MAX_SOLUTIONS);
     let solutions_checked = possible_solutions.len();
 
-    //find the solutions whose end state has the highest finished_estimate
-    let mut min_finished_estimate = usize::MAX;
-    let mut max_scoring_solution = None;
+    //find the solutions whose end state has the lowest pours to finish estimate
+    let mut min_pours_estimate = usize::MAX;
+    let mut min_scoring_solution = None;
     let mut equal_solution_count = 0;
     for possible_solution in possible_solutions {
         let mut working_gs = gamestate_to_solve.clone();
@@ -45,21 +45,21 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
             working_gs = pour.try_apply(&working_gs).unwrap()
         }
         let score = working_gs.pours_to_finish_estimate();
-        if score < min_finished_estimate {
-            min_finished_estimate = score;
-            max_scoring_solution = Some(possible_solution);
+        if score < min_pours_estimate {
+            min_pours_estimate = score;
+            min_scoring_solution = Some(possible_solution);
             equal_solution_count = 1;
-        } else if score == min_finished_estimate {
+        } else if score == min_pours_estimate {
             equal_solution_count += 1;
         }
     }
 
-    max_scoring_solution.map(|s| {
+    min_scoring_solution.map(|s| {
         (
             s,
             DemystifyNextStepStats {
                 solutions_checked,
-                min_finished_estimate,
+                min_finished_estimate: min_pours_estimate,
                 equal_solution_count
             }
         )
