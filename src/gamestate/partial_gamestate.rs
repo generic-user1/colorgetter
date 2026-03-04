@@ -6,7 +6,6 @@ use crate::{
 use heapless::{CapacityError, Vec};
 use serde::{Deserialize, Serialize};
 
-mod collapse;
 mod pseudo_partial_gamestate;
 pub use pseudo_partial_gamestate::{PseudoPartialGameState, PseudoPartialGameStateError};
 

@@ -92,9 +92,6 @@ pub enum PseudoPartialGameStateError {
 ///
 /// The two states are said to match if you could get `known` purely by replacing
 /// the unknown units in `partial` with known colors.
-///
-/// Put another way, this determines whether calling [PartialGameState::collapse]
-/// on `partial` *could* generate `known`.
 fn states_match<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
     known: &KnownGameState<MAX_BCOUNT, B_MAX_CAP>,
     partial: &PartialGameState<MAX_BCOUNT, B_MAX_CAP>
