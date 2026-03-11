@@ -92,43 +92,19 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
 fn rate_success_chance<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
     gamestate_to_rate: &PartialGameState<MAX_BCOUNT, B_MAX_CAP>
 ) -> f64 {
-    //first, get color counts for known units and max capacity of the largest bottle;
-    //these will be used to ensure we don't add a unit of a color that would lead to too many units of that color
-    let mut color_counts: HashMap<ColoredWaterUnit, usize> = HashMap::new();
-    let mut largest_cap_seen = 0;
-    for bottle in gamestate_to_rate.bottles.iter() {
-        if bottle.capacity() > largest_cap_seen {
-            largest_cap_seen = bottle.capacity();
-        }
-        if let Some(top_idx) = bottle.get_top_content_idx() {
-            for idx in 0..=top_idx {
-                if let Some(color) = bottle.sample_known_color_at(idx) {
-                    match color_counts.entry(color) {
-                        Entry::Occupied(mut e) => {
-                            *e.get_mut() = e.get() + 1;
-                        }
-                        Entry::Vacant(e) => {
-                            e.insert(1);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    //next, find the bottle with an unknown unit on top
+    //find the bottle with an unknown unit on top
     for (bottle_idx, bottle) in gamestate_to_rate.bottles.iter().enumerate() {
         if bottle.get_top_color() == Some(PartialColoredWaterUnit::UnknownColor) {
-            //once we have our bottle, start trying colors
+            //once we have our bottle, calculate probabilities of this unit being each color, then start trying colors
+            let color_probabilities = rate_color_probabilities(gamestate_to_rate);
             let top_idx = bottle.get_top_content_idx().unwrap();
 
-            let mut trial_count = 0_usize;
-            let mut success_count = 0_usize;
+            //this will be the sum of the probabilities of any successful outcome
+            let mut success_chance = 0.0;
             for color in ColoredWaterIter(None) {
-                //determine if adding one unit of this color would lead to too many units of that color
-                let this_color_current_count = *color_counts.get(&color).unwrap_or(&0);
-                if this_color_current_count + 1 > largest_cap_seen {
-                    //if it would, skip checking this color
+                let this_color_probability = *color_probabilities.get(&color).unwrap();
+                //if this color has a 0 probability, skip it entirely
+                if this_color_probability == 0.0 {
                     continue;
                 }
 
@@ -136,17 +112,105 @@ fn rate_success_chance<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
                 sim_state.bottles[bottle_idx]
                     .try_set_color(top_idx, Some(PartialColoredWaterUnit::Color(color)))
                     .unwrap();
-                trial_count += 1;
-
                 if Solution::try_new(&sim_state, 0).is_some() {
-                    success_count += 1;
+                    success_chance += this_color_probability;
                 }
             }
 
-            let success_chance = (success_count as f64) / (trial_count as f64);
-            return success_chance;
+            //our result should be a number between 0.0 and 1.0, but imprecision may mean it's slightly out of bounds, so we clamp before returning
+            return success_chance.clamp(0.0, 1.0);
         }
     }
     //we reach here if there was no bottle with an unknown unit on top, return 1.0 by default
     1.0
+}
+
+/// Given a gamestate, determine how likely it is that any one unknown color unit will end up being
+/// any of the posssible colors, based on how many appearances each color has.
+///
+/// Return value is a [HashMap] of [ColoredWaterUnit] keys to [f64] values where each value is a number from 0.0 to 1.0,
+/// with 0.0 indicating 0% chance of an unknown unit being that color and 1.0 indicating a 100% chance of an unknown unit being that color.
+///
+/// Mathematically, all the values in the return value should add up to precisely 1.0, though floating-point imprecision
+/// means they may add up to slightly more or less than this.
+///
+/// Makes some assumptions about the gamestate:
+///
+/// - The maximum number of units for any given color is the same as the capacity of the largest bottle.
+///   If bottles are of varying capacity, this means the estimations returned by this function will be incorrect in some way.
+///   This could lead to panicking - this issue may be resolved in the future
+///
+/// - If there are enough unknown units that all units of any particular color are unknown, this function will make a guess
+///   as to which color/colors are entirely unknown. This guess will probably be wrong, but the probabilities should still make sense.
+fn rate_color_probabilities<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
+    gamestate_to_rate: &PartialGameState<MAX_BCOUNT, B_MAX_CAP>
+) -> HashMap<ColoredWaterUnit, f64> {
+    //first, get color counts for known units, max capacity of the largest bottle,
+    //and total number of unknown units
+    let mut known_color_counts: HashMap<ColoredWaterUnit, usize> = HashMap::new();
+    let mut largest_cap_seen = 0;
+    let mut unknown_unit_count = 0_usize;
+    for bottle in gamestate_to_rate.bottles.iter() {
+        if bottle.capacity() > largest_cap_seen {
+            largest_cap_seen = bottle.capacity();
+        }
+        if let Some(top_idx) = bottle.get_top_content_idx() {
+            for idx in 0..=top_idx {
+                match bottle.sample_content_at(idx) {
+                    Some(PartialColoredWaterUnit::Color(color)) => {
+                        match known_color_counts.entry(color) {
+                            Entry::Occupied(mut e) => {
+                                *e.get_mut() = e.get() + 1;
+                            }
+                            Entry::Vacant(e) => {
+                                e.insert(1);
+                            }
+                        }
+                    }
+                    Some(PartialColoredWaterUnit::UnknownColor) => {
+                        unknown_unit_count += 1;
+                    }
+                    None => ()
+                }
+            }
+        }
+    }
+
+    //now we will find the number of missing units for each color, assuming
+    //that there should be `largest_cap_seen` units of each color
+    let mut assumed_unknown_counts: HashMap<ColoredWaterUnit, usize> = HashMap::new();
+    for (color, known_count) in known_color_counts.into_iter() {
+        if known_count >= largest_cap_seen {
+            assumed_unknown_counts.insert(color, 0);
+        } else {
+            assumed_unknown_counts.insert(color, largest_cap_seen - known_count);
+        }
+    }
+    //it's possible there are colors entirely hidden - we check for this by comparing the sum of assumed_unknown_counts' values
+    //to the total number of unknown units observed, and adding new colors until we meet the number of unknown units
+    'outer: while assumed_unknown_counts.values().sum::<usize>() < unknown_unit_count {
+        for possible_color in ColoredWaterIter(None) {
+            if let Entry::Vacant(e) = assumed_unknown_counts.entry(possible_color) {
+                e.insert(largest_cap_seen);
+                continue 'outer;
+            }
+        }
+        //if we reach this point, we ran out of possible colors before reaching our unknown unit count
+        panic!("not enough colors to satisfy all unknown units")
+    }
+
+    //double check that our values line up
+    assert_eq!(
+        assumed_unknown_counts.values().sum::<usize>(),
+        unknown_unit_count,
+        "assumed unknown counts didn't sum to actual unknown count"
+    );
+
+    //now we know how many of each color there are, we can get probabilities for each color
+    let unknown_unit_count = unknown_unit_count as f64;
+    let mut probabilities = HashMap::new();
+    for (color, count) in assumed_unknown_counts.into_iter() {
+        probabilities.insert(color, (count as f64) / unknown_unit_count);
+    }
+    probabilities
 }
