@@ -85,10 +85,9 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
 /// (i.e. a 100% chance for a dead-end)
 /// Returns 1.0 for gamestates with no top unit that is unknown.
 ///
-/// Currently, does not consider how likely it is for the unknown unit to be any particular color; will skip colors that aren't
-/// possible (because too many of that color are already known) but that's it. This aspect may be improved in the future.
+/// Does consider how likely each color is to appear, see [rate_color_probabilities].
 ///
-/// If, somehow, there are multiple bottles whose topmost units are unknown, only tests with the first occurring unit
+/// If, somehow, there are multiple bottles whose topmost units are unknown, only tests with the first occurring unit.
 fn rate_success_chance<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
     gamestate_to_rate: &PartialGameState<MAX_BCOUNT, B_MAX_CAP>
 ) -> f64 {
@@ -101,19 +100,26 @@ fn rate_success_chance<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
 
             //this will be the sum of the probabilities of any successful outcome
             let mut success_chance = 0.0;
-            for color in ColoredWaterIter(None) {
-                let this_color_probability = *color_probabilities.get(&color).unwrap();
-                //if this color has a 0 probability, skip it entirely
-                if this_color_probability == 0.0 {
-                    continue;
-                }
 
-                let mut sim_state = gamestate_to_rate.clone();
-                sim_state.bottles[bottle_idx]
-                    .try_set_color(top_idx, Some(PartialColoredWaterUnit::Color(color)))
-                    .unwrap();
-                if Solution::try_new(&sim_state, 0).is_some() {
-                    success_chance += this_color_probability;
+            //sim_state will be the state we set a color in and try to find a solution for.
+            //since we're only making one change, and that change is in the same spot each time, we only
+            //actually need one sim_state for all tests and so we create it outside of the loop.
+            //because we only need one sim_state, we could technically save this clone by taking
+            //gamestate_to_rate instead of borrowing it, but weirdly, borrowing it and cloning appears to be slightly faster
+            let mut sim_state = gamestate_to_rate.clone();
+            for color in ColoredWaterIter(None) {
+                //if this color has a 0 probability or isn't in the probabilities map, skip it entirely
+                match color_probabilities.get(&color).copied() {
+                    None => continue,
+                    Some(0.0) => continue,
+                    Some(probability) => {
+                        sim_state.bottles[bottle_idx]
+                            .try_set_color(top_idx, Some(PartialColoredWaterUnit::Color(color)))
+                            .unwrap();
+                        if Solution::try_new(&sim_state, 0).is_some() {
+                            success_chance += probability;
+                        }
+                    }
                 }
             }
 
