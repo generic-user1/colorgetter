@@ -148,6 +148,8 @@ fn rate_success_chance<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
 ///
 /// - If there are enough unknown units that all units of any particular color are unknown, this function will make a guess
 ///   as to which color/colors are entirely unknown. This guess will probably be wrong, but the probabilities should still make sense.
+///
+/// - There is at least one unknown unit (if there aren't any unknown units, division by zero could occur)
 fn rate_color_probabilities<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
     gamestate_to_rate: &PartialGameState<MAX_BCOUNT, B_MAX_CAP>
 ) -> HashMap<ColoredWaterUnit, f64> {
