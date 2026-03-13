@@ -20,12 +20,14 @@ pub struct DemystifyNextStepStats {
     /// The number of possible [Solution]s that were evaluated
     pub solutions_checked: usize,
 
-    /// The smallest `pours_to_finish_estimate` found from any of the [Solution]s checked; i.e., the
-    /// `pours_to_finish_estimate` of the returned [Solution]
-    pub min_finished_estimate: usize,
+    /// The smallest score found from any of the [Solution]s checked; i.e., the
+    /// score of the returned [Solution]. Score is a somewhat arbitrary number
+    /// that represents both the `pours_to_finish_estimate` of a [Solution] and how
+    /// likely that [Solution] is to lead to a dead-end, and the lowest score is considered best.
+    pub min_score: usize,
 
-    /// The number of possible [Solution]s that had the `min_finished_estimate`
-    pub equal_solution_count: usize
+    /// The number of possible [Solution]s that had a score equal to the [Solution] picked
+    pub equal_scoring_solution_count: usize
 }
 
 /// Try to find a [Solution] for the given [PartialGameState] that leads to revealing a new unknown color unit
@@ -109,15 +111,15 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
         let mut min_seen_score = usize::MAX;
         let mut min_idx_for_score = usize::MAX;
         let mut solution_to_use = None;
-        let mut equal_solution_count = 0;
+        let mut equal_scoring_solution_count = 0;
         while let Ok((solution_idx, possible_solution, score)) = results_recv.recv() {
             if score < min_seen_score {
                 min_seen_score = score;
                 min_idx_for_score = solution_idx;
                 solution_to_use = Some(possible_solution);
-                equal_solution_count = 1;
+                equal_scoring_solution_count = 1;
             } else if score == min_seen_score {
-                equal_solution_count += 1;
+                equal_scoring_solution_count += 1;
                 if solution_idx < min_idx_for_score {
                     min_idx_for_score = solution_idx;
                     solution_to_use = Some(possible_solution);
@@ -130,8 +132,8 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
                 s,
                 DemystifyNextStepStats {
                     solutions_checked,
-                    min_finished_estimate: min_seen_score,
-                    equal_solution_count
+                    min_score: min_seen_score,
+                    equal_scoring_solution_count
                 }
             )
         })

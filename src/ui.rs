@@ -243,8 +243,8 @@ impl Ui {
                     if let Some((_, stats)) = state.borrow_result().unwrap() {
                         format!("Found path to next color. {} possible solution{} checked, {} was the min score found ({} solution{} with this score)", 
                         stats.solutions_checked, if stats.solutions_checked == 1 {""} else {"s"},
-                        stats.min_finished_estimate, 
-                        stats.equal_solution_count, if stats.equal_solution_count == 1 {""} else {"s"}
+                        stats.min_score, 
+                        stats.equal_scoring_solution_count, if stats.equal_scoring_solution_count == 1 {""} else {"s"}
                     )
                     } else {
                         "No path to next color found; reset game before continuing".to_owned()

@@ -113,8 +113,8 @@ pub fn auto_demystify<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
                     step_count,
                     pours.len(),
                     stats.solutions_checked,
-                    stats.min_finished_estimate,
-                    stats.equal_solution_count
+                    stats.min_score,
+                    stats.equal_scoring_solution_count
                 )
             }
 
