@@ -249,7 +249,6 @@ impl<'a, T: Serialize> SaveMenuState<'a, T> {
                 KeyEvent {
                     code: KeyCode::Char(c),
                     kind: k,
-                    modifiers: m,
                     ..
                 } if k == KeyEventKind::Press || k == KeyEventKind::Repeat => match self.c_state {
                     SaveCursorState::FileName(idx) => {
