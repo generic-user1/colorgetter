@@ -2,7 +2,6 @@
 
 use crate::{
     bottle::{Bottle, BottleSampleResult},
-    colored_water::PartialColoredWaterUnit,
     gamestate::{Pour, ValidPourIter}
 };
 use crossterm::{
@@ -247,41 +246,14 @@ pub trait GameState: Clone {
     /// to the `pours_to_finish_estimate` figure from another GameState).
     fn pours_to_finish_estimate(&self) -> usize {
         // the pours_to_finish_estimate for a gamestate is the
-        // sum of the pours_to_finish_estimate for its non-empty bottles, plus a penalty
-        // for each bottle with empty space whose top color is not on top of a different bottle.
+        // sum of the pours_to_finish_estimate for its non-empty bottles
         let mut total_score = 0;
         let bottles = self.get_bottles();
-        for (idx, bottle) in bottles.iter().enumerate() {
+        for bottle in bottles.iter() {
             if bottle.is_empty() {
                 continue;
             }
             total_score += bottle.pours_to_finish_estimate();
-
-            match bottle.get_top_color() {
-                Some(PartialColoredWaterUnit::Color(color)) => {
-                    let mut penalty = bottle
-                        .capacity()
-                        .saturating_sub(bottle.get_top_content_idx().unwrap() + 1);
-                    if penalty > 0 {
-                        for (inner_idx, inner_bottle) in bottles.iter().enumerate() {
-                            if inner_idx == idx {
-                                continue;
-                            }
-
-                            if let Some(other_top_color_run) = inner_bottle.get_top_color_run() {
-                                if other_top_color_run.color
-                                    == PartialColoredWaterUnit::Color(color)
-                                {
-                                    penalty = penalty.saturating_sub(other_top_color_run.size);
-                                }
-                            }
-                        }
-                        total_score += penalty;
-                    }
-                }
-                Some(PartialColoredWaterUnit::UnknownColor) => (),
-                None => ()
-            }
         }
         total_score
     }
