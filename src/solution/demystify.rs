@@ -1,6 +1,11 @@
 //! utilities for demystification of [PartialGameState]s into [KnownGameState](crate::gamestate::KnownGameState)s
 
-use std::collections::{hash_map::Entry, HashMap};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    thread::{self, available_parallelism}
+};
+
+use crossbeam_channel::{self, Receiver};
 
 use super::*;
 use crate::{
@@ -41,40 +46,95 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
     let possible_solutions = find_many_solutions(gamestate_to_solve, 0, MAX_SOLUTIONS);
     let solutions_checked = possible_solutions.len();
 
-    //find the solutions whose end state has the lowest pours to finish estimate
-    let mut min_pours_estimate = usize::MAX;
-    let mut min_scoring_solution = None;
-    let mut equal_solution_count = 0;
-    for possible_solution in possible_solutions {
-        let mut working_gs = gamestate_to_solve.clone();
-        for pour in possible_solution.get_pours() {
-            working_gs = pour.try_apply(&working_gs).unwrap()
+    // thread count is number of available hardware threads (defaulting to 4 if it can't be queried) or the number
+    // of possible solutions, whichever is smaller.
+    let thread_count = available_parallelism()
+        .map(|c| c.get())
+        .unwrap_or(4)
+        .min(solutions_checked);
+
+    // create a work channel (will send possible solutions to workers for evaluation)
+    // and a result channel (will send scores for each solution from workers back to main thread)
+    let (work_send, work_recv) = crossbeam_channel::unbounded();
+    let (results_send, results_recv) = crossbeam_channel::unbounded();
+
+    thread::scope(|s| {
+        //spawn threads
+        for _ in 0..thread_count {
+            //type inference fails here for some reason so we have to specify the type of the
+            //cloned work_recv explicitly
+            let work_recv: Receiver<(usize, Solution<'_, PartialGameState<_, _>>)> =
+                work_recv.clone();
+            let results_send = results_send.clone();
+            s.spawn(move || {
+                //keep looping until the main thread hangs up; for each loop, evaluate the solution to assign it a score,
+                //then send (idx, solution, score) back to the main thread
+                while let Ok((solution_idx, possible_solution)) = work_recv.recv() {
+                    let mut working_gs = gamestate_to_solve.clone();
+                    for pour in possible_solution.get_pours() {
+                        working_gs = pour.try_apply(&working_gs).unwrap()
+                    }
+                    let base_score = working_gs.pours_to_finish_estimate();
+
+                    //increase the score by some amount proportional to how likely this state is to be a dead end
+                    //the penalty multiplier is 1.0 if the success chance is 1.0, and 2.0 if the success chance is 0.0
+                    let failure_chance_penalty_mult =
+                        (1.0 - rate_success_chance(&working_gs)) + 1.0;
+                    let score = ((base_score as f64) * failure_chance_penalty_mult) as usize;
+                    results_send
+                        .send((solution_idx, possible_solution, score))
+                        .expect("main thread hung up before expected");
+                }
+            });
         }
-        let base_score = working_gs.pours_to_finish_estimate();
 
-        //increase the score by some amount proportional to how likely this state is to be a dead end
-        //the penalty multiplier is 1.0 if the success chance is 1.0, and 2.0 if the success chance is 0.0
-        let failure_chance_penalty_mult = (1.0 - rate_success_chance(&working_gs)) + 1.0;
-        let score = ((base_score as f64) * failure_chance_penalty_mult) as usize;
+        //drop the main thread's copy of results_send; we only needed it for making
+        //copies to give to the worker threads, so we don't need it anymore
+        drop(results_send);
 
-        if score < min_pours_estimate {
-            min_pours_estimate = score;
-            min_scoring_solution = Some(possible_solution);
-            equal_solution_count = 1;
-        } else if score == min_pours_estimate {
-            equal_solution_count += 1;
+        //send all the possible solutions to the workers
+        //include each solution's index so the workers can include the index when sending results back to us
+        for (solution_idx, possible_solution) in possible_solutions.into_iter().enumerate() {
+            work_send
+                .send((solution_idx, possible_solution))
+                .expect("worker threads hung up before expected");
         }
-    }
+        //drop the main thread's sender to indicate to the workers that there's no more work to do
+        drop(work_send);
 
-    min_scoring_solution.map(|s| {
-        (
-            s,
-            DemystifyNextStepStats {
-                solutions_checked,
-                min_finished_estimate: min_pours_estimate,
-                equal_solution_count
+        //iterate through results sent back by the workers and pick the lowest scoring one
+        //when there are multiple solutions with the same score, pick the one with the lowest index
+        //(the one that find_many_solutions would've found first) - this ensures that this function remains
+        //deterministic despite variability in worker threads' timings
+        let mut min_seen_score = usize::MAX;
+        let mut min_idx_for_score = usize::MAX;
+        let mut solution_to_use = None;
+        let mut equal_solution_count = 0;
+        while let Ok((solution_idx, possible_solution, score)) = results_recv.recv() {
+            if score < min_seen_score {
+                min_seen_score = score;
+                min_idx_for_score = solution_idx;
+                solution_to_use = Some(possible_solution);
+                equal_solution_count = 1;
+            } else if score == min_seen_score {
+                equal_solution_count += 1;
+                if solution_idx < min_idx_for_score {
+                    min_idx_for_score = solution_idx;
+                    solution_to_use = Some(possible_solution);
+                }
             }
-        )
+        }
+
+        solution_to_use.map(|s| {
+            (
+                s,
+                DemystifyNextStepStats {
+                    solutions_checked,
+                    min_finished_estimate: min_seen_score,
+                    equal_solution_count
+                }
+            )
+        })
     })
 }
 
