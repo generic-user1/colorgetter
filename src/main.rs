@@ -36,13 +36,21 @@ fn solve(gamestate_file_path: Option<PathBuf>, save_demystified: bool) -> Result
 
     let pgs = ui.setup_menu_loop::<15, 15>(initial_game_state)?;
 
-    let demystified = ui.demystifier_loop(pgs)?;
-    if save_demystified {
-        ui.save_demystified(&demystified)?;
-    }
-    let solution = ui.demystified_result_solution_finding_loop(&demystified)?;
-    if let Some(solution) = solution {
-        ui.solution_viewer_loop(&solution)?;
+    if let Ok(gs) = pgs.clone().try_into() {
+        //if the gamestate can directly convert to known, use the solution finding loop with messages for known gamestates
+        if let Some(solution) = ui.solution_finding_loop(&gs)? {
+            ui.solution_viewer_loop(&solution)?;
+        }
+    } else {
+        //if the gamestate can't convert to known, demystify it first, then use solution finding loop with messages for demystified gamestates
+        let demystified = ui.demystifier_loop(pgs)?;
+        if save_demystified {
+            ui.save_demystified(&demystified)?;
+        }
+        let solution = ui.demystified_result_solution_finding_loop(&demystified)?;
+        if let Some(solution) = solution {
+            ui.solution_viewer_loop(&solution)?;
+        }
     }
     Ok(())
 }
