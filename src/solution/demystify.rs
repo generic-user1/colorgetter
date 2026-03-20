@@ -27,7 +27,12 @@ pub struct DemystifyNextStepStats {
     pub min_score: usize,
 
     /// The number of possible [Solution]s that had a score equal to the [Solution] picked
-    pub equal_scoring_solution_count: usize
+    pub equal_scoring_solution_count: usize,
+
+    /// An estimation of how likely it is that this [Solution] will lead to a dead-end
+    /// as a number in the range 0.0 - 1.0 inclusive. A value of 0.0 indicates a 0% chance of
+    /// an immediate dead-end, and a value of 1.0 indicates a 100% chance of an immediate dead-end.
+    pub dead_end_chance: f64
 }
 
 /// Try to find a [Solution] for the given [PartialGameState] that leads to revealing a new unknown color unit
@@ -80,11 +85,11 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
 
                     //increase the score by some amount proportional to how likely this state is to be a dead end
                     //the penalty multiplier is 1.0 if the success chance is 1.0, and 2.0 if the success chance is 0.0
-                    let failure_chance_penalty_mult =
-                        (1.0 - rate_success_chance(&working_gs)) + 1.0;
-                    let score = ((base_score as f64) * failure_chance_penalty_mult) as usize;
+                    let dead_end_chance = 1.0 - rate_success_chance(&working_gs);
+                    let dead_end_chance_penalty_mult = dead_end_chance + 1.0;
+                    let score = ((base_score as f64) * dead_end_chance_penalty_mult) as usize;
                     results_send
-                        .send((solution_idx, possible_solution, score))
+                        .send((solution_idx, possible_solution, score, dead_end_chance))
                         .expect("main thread hung up before expected");
                 }
             });
@@ -111,18 +116,23 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
         let mut min_seen_score = usize::MAX;
         let mut min_idx_for_score = usize::MAX;
         let mut solution_to_use = None;
+        let mut solution_dead_end_chance = 1.0;
         let mut equal_scoring_solution_count = 0;
-        while let Ok((solution_idx, possible_solution, score)) = results_recv.recv() {
+        while let Ok((solution_idx, possible_solution, score, dead_end_chance)) =
+            results_recv.recv()
+        {
             if score < min_seen_score {
                 min_seen_score = score;
                 min_idx_for_score = solution_idx;
                 solution_to_use = Some(possible_solution);
+                solution_dead_end_chance = dead_end_chance;
                 equal_scoring_solution_count = 1;
             } else if score == min_seen_score {
                 equal_scoring_solution_count += 1;
                 if solution_idx < min_idx_for_score {
                     min_idx_for_score = solution_idx;
                     solution_to_use = Some(possible_solution);
+                    solution_dead_end_chance = dead_end_chance;
                 }
             }
         }
@@ -133,7 +143,8 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
                 DemystifyNextStepStats {
                     solutions_checked,
                     min_score: min_seen_score,
-                    equal_scoring_solution_count
+                    equal_scoring_solution_count,
+                    dead_end_chance: solution_dead_end_chance
                 }
             )
         })
