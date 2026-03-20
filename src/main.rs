@@ -87,8 +87,11 @@ enum Action {
         /// The game state must only have known colors.
         /// The state that gets demystified will be this state with all colors
         /// not on top of their respective bottles set to unknown.
-        #[arg(short, long, value_name = "FILE_PATH")]
-        gamestate_file: PathBuf,
+        ///
+        /// You can specify multiple saved game states to test in sequence if desired, but
+        /// at least one game state is required
+        #[arg(short, long, value_name = "FILE_PATH", required = true)]
+        gamestate_file: Vec<PathBuf>,
 
         /// Whether to print information about demystification test as each test is running
         /// or only the summary after each test finishes.
