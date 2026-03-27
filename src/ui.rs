@@ -114,7 +114,8 @@ impl Ui {
         let mut state = SetupMenuState::new(initial_game_state, specific_bottle_idx);
         let mut out = stdout();
         loop {
-            out.queue(Clear(ClearType::All))?.queue(MoveTo(0, 0))?;
+            state.clear_screen_if_needed(&mut out)?;
+            out.queue(MoveTo(0, 0))?;
             state.queue_display(&mut out)?;
             out.flush()?;
             let should_exit = state.handle_event(event::read()?)?;
@@ -382,9 +383,10 @@ impl Ui {
         solution: &Solution<GamestateT>
     ) -> Result<(), UiRunError> {
         let mut state = SolutionViewerState::new(solution);
+        let mut out = stdout();
+        out.queue(Clear(ClearType::All))?;
         loop {
-            let mut out = stdout();
-            out.queue(Clear(ClearType::All))?.queue(MoveTo(0, 0))?;
+            out.queue(MoveTo(0, 0))?;
             state.queue_display(&mut out)?;
             out.flush()?;
             let should_exit = state.handle_event(event::read()?)?;

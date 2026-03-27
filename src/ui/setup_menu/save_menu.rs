@@ -19,9 +19,10 @@ use std::{
 /// Returns the file path saved to, or None if the menu was exited without saving.
 pub(crate) fn save_menu_loop<T: Serialize>(gs: &T) -> Result<Option<String>, UiRunError> {
     let mut state = SaveMenuState::new(gs);
+    let mut out = stdout();
     loop {
-        let mut out = stdout();
-        out.queue(Clear(ClearType::All))?.queue(MoveTo(0, 0))?;
+        state.clear_screen_if_needed(&mut out)?;
+        out.queue(MoveTo(0, 0))?;
         state.queue_display(&mut out)?;
         out.flush()?;
         match state.handle_event(event::read()?)? {
@@ -46,7 +47,9 @@ pub(super) struct SaveMenuState<'a, T: Serialize> {
     pub gs: &'a T,
     filepath: Vec<char>,
     c_state: SaveCursorState,
-    last_err_msg: String
+    last_err_msg: String,
+    needs_filename_clear: bool,
+    needs_screen_clear: bool
 }
 
 /// Represents the cursor position in the save menu
@@ -66,7 +69,9 @@ impl<'a, T: Serialize> SaveMenuState<'a, T> {
             gs,
             filepath: DEFAULT_PATH.chars().collect(),
             c_state: SaveCursorState::FileName(DEFAULT_PATH.len()),
-            last_err_msg: "".to_string()
+            last_err_msg: "".to_string(),
+            needs_filename_clear: false,
+            needs_screen_clear: true
         }
     }
 
@@ -74,10 +79,30 @@ impl<'a, T: Serialize> SaveMenuState<'a, T> {
         self.last_err_msg = err.to_message()
     }
     pub fn clear_err_msg(&mut self) {
+        self.needs_screen_clear = true;
         self.last_err_msg = "".to_string()
     }
 
-    pub fn queue_display<U: QueueableCommand>(&self, ostream: &mut U) -> io::Result<()> {
+    /// Clear the screen if needed, do nothing if not needed
+    ///
+    /// Resets the internal flag tracking whether the screen needs to be cleared, so calling
+    /// twice in a row will result in the second call always choosing not to clear the screen.
+    ///
+    /// Returns whether the screen was cleared or not
+    pub fn clear_screen_if_needed<U: QueueableCommand>(
+        &mut self,
+        ostream: &mut U
+    ) -> io::Result<bool> {
+        Ok(if self.needs_screen_clear {
+            ostream.queue(Clear(ClearType::All))?;
+            self.needs_screen_clear = false;
+            true
+        } else {
+            false
+        })
+    }
+
+    pub fn queue_display<U: QueueableCommand>(&mut self, ostream: &mut U) -> io::Result<()> {
         ostream.queue(MoveDown(1))?.queue(MoveToColumn(0))?;
 
         if !self.last_err_msg.is_empty() {
@@ -85,6 +110,10 @@ impl<'a, T: Serialize> SaveMenuState<'a, T> {
                 .queue(Print(format!("Error: {}", self.last_err_msg)))?
                 .queue(MoveDown(2))?
                 .queue(MoveToColumn(0))?;
+        }
+        if self.needs_filename_clear {
+            ostream.queue(Clear(ClearType::CurrentLine))?;
+            self.needs_filename_clear = false;
         }
         ostream.queue(Print("File path: "))?;
 
@@ -189,6 +218,9 @@ impl<'a, T: Serialize> SaveMenuState<'a, T> {
                     ..
                 } if k == KeyEventKind::Press || k == KeyEventKind::Repeat => match self.c_state {
                     SaveCursorState::FileName(idx) => {
+                        if idx >= self.filepath.len() {
+                            self.needs_filename_clear = true;
+                        }
                         if idx > self.filepath.len() {
                             self.c_state = SaveCursorState::FileName(self.filepath.len())
                         } else if idx > 0 {
@@ -203,7 +235,12 @@ impl<'a, T: Serialize> SaveMenuState<'a, T> {
                     kind: k,
                     ..
                 } if k == KeyEventKind::Press || k == KeyEventKind::Repeat => match self.c_state {
-                    SaveCursorState::FileName(_) => self.c_state = SaveCursorState::FileName(0),
+                    SaveCursorState::FileName(idx) => {
+                        if idx >= self.filepath.len() {
+                            self.needs_filename_clear = true;
+                        }
+                        self.c_state = SaveCursorState::FileName(0)
+                    }
                     SaveCursorState::Confirm => ()
                 },
 
@@ -223,7 +260,12 @@ impl<'a, T: Serialize> SaveMenuState<'a, T> {
                     kind: k,
                     ..
                 } if k == KeyEventKind::Press || k == KeyEventKind::Repeat => match self.c_state {
-                    SaveCursorState::FileName(_) => self.c_state = SaveCursorState::Confirm,
+                    SaveCursorState::FileName(idx) => {
+                        if idx >= self.filepath.len() {
+                            self.needs_filename_clear = true;
+                        }
+                        self.c_state = SaveCursorState::Confirm
+                    }
                     SaveCursorState::Confirm => ()
                 },
 
@@ -232,7 +274,12 @@ impl<'a, T: Serialize> SaveMenuState<'a, T> {
                     kind: k,
                     ..
                 } if k == KeyEventKind::Press || k == KeyEventKind::Repeat => match self.c_state {
-                    SaveCursorState::FileName(_) => self.c_state = SaveCursorState::Confirm,
+                    SaveCursorState::FileName(idx) => {
+                        if idx >= self.filepath.len() {
+                            self.needs_filename_clear = true;
+                        }
+                        self.c_state = SaveCursorState::Confirm
+                    }
                     SaveCursorState::Confirm => {
                         return Ok(SaveMenuEventResult::SaveAndExit);
                     }
@@ -265,6 +312,7 @@ impl<'a, T: Serialize> SaveMenuState<'a, T> {
                     ..
                 } if k == KeyEventKind::Press || k == KeyEventKind::Repeat => match self.c_state {
                     SaveCursorState::FileName(idx) => {
+                        self.needs_filename_clear = true;
                         let idx_to_use = idx.min(self.filepath.len()).checked_sub(1);
                         if let Some(idx_to_use) = idx_to_use {
                             self.filepath.remove(idx_to_use);
@@ -280,6 +328,7 @@ impl<'a, T: Serialize> SaveMenuState<'a, T> {
                     ..
                 } if k == KeyEventKind::Press || k == KeyEventKind::Repeat => match self.c_state {
                     SaveCursorState::FileName(idx) => {
+                        self.needs_filename_clear = true;
                         let idx_to_use = idx.min(self.filepath.len());
                         if idx_to_use < self.filepath.len() {
                             self.filepath.remove(idx_to_use);

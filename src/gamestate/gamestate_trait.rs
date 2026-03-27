@@ -5,7 +5,7 @@ use crate::{
     gamestate::{Pour, ValidPourIter}
 };
 use crossterm::{
-    cursor::{MoveDown, MoveLeft, MoveRight},
+    cursor::{MoveDown, MoveLeft},
     style::{ContentStyle, Print, PrintStyledContent, StyledContent, Stylize},
     QueueableCommand
 };
@@ -85,6 +85,7 @@ pub trait GameState: Clone {
         const UNKNOWN: char = '?';
         const FROM: char = 'F';
         const TO: char = 'T';
+        const BLANK: char = ' ';
 
         let bottles = self.get_bottles();
 
@@ -129,11 +130,11 @@ pub trait GameState: Clone {
                                     ostream.queue(Print(TO))?;
                                 } else {
                                     //this bottle isn't our source or dest!
-                                    ostream.queue(MoveRight(1))?;
+                                    ostream.queue(Print(BLANK))?;
                                 }
                             }
                         } else {
-                            ostream.queue(MoveRight(1))?;
+                            ostream.queue(Print(BLANK))?;
                         }
                     } else {
                         match bottle.sample_at(row_index) {
@@ -162,13 +163,13 @@ pub trait GameState: Clone {
                             BottleSampleResult::OutOfBounds => {
                                 // we shouldn't ever reach here since we already checked that our index was in bounds,
                                 // but if we somehow do, just move on without printing anything
-                                ostream.queue(MoveRight(1))?;
+                                ostream.queue(Print(BLANK))?;
                             }
                         }
                     }
 
                     // print an empty space between bottles
-                    ostream.queue(MoveRight(1))?;
+                    ostream.queue(Print(BLANK))?;
                 }
                 //move cursor to beginning of next row
 

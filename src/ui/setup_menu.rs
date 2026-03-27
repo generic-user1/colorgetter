@@ -12,6 +12,7 @@ use crossterm::{
     cursor::{MoveDown, MoveRight, MoveToColumn},
     event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
     style::{ContentStyle, Print, PrintStyledContent, StyledContent},
+    terminal::{Clear, ClearType},
     QueueableCommand
 };
 use heapless;
@@ -31,7 +32,8 @@ pub(super) struct SetupMenuState<const MAX_BCOUNT: usize, const B_MAX_CAP: usize
     pub gs: PartialGameState<MAX_BCOUNT, B_MAX_CAP>,
     c_state: SetupCursorState,
     file_saved_path: Option<String>,
-    specific_bottle_data: Option<SpecificBottleData>
+    specific_bottle_data: Option<SpecificBottleData>,
+    needs_screen_clear: bool
 }
 
 /// Represents the cursor position in the setup menu
@@ -99,8 +101,28 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT,
                 bottles: heapless::Vec::new()
             }),
             file_saved_path: None,
-            specific_bottle_data
+            specific_bottle_data,
+            needs_screen_clear: true
         }
+    }
+
+    /// Clear the screen if needed, do nothing if not needed
+    ///
+    /// Resets the internal flag tracking whether the screen needs to be cleared, so calling
+    /// twice in a row will result in the second call always choosing not to clear the screen.
+    ///
+    /// Returns whether the screen was cleared or not
+    pub fn clear_screen_if_needed<T: QueueableCommand>(
+        &mut self,
+        ostream: &mut T
+    ) -> io::Result<bool> {
+        Ok(if self.needs_screen_clear {
+            ostream.queue(Clear(ClearType::All))?;
+            self.needs_screen_clear = false;
+            true
+        } else {
+            false
+        })
     }
 
     pub fn queue_display<T: QueueableCommand>(&self, ostream: &mut T) -> io::Result<()> {
@@ -170,6 +192,7 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT,
         if let Event::Key(event) = event {
             if event.kind == KeyEventKind::Press && self.file_saved_path.is_some() {
                 self.file_saved_path = None;
+                self.needs_screen_clear = true;
             }
 
             let retval = match event {
@@ -273,7 +296,14 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT,
                 //ensure no specific bottle is set
                 if self.specific_bottle_data.is_none() {
                     //add a bottle if there's room, do nothing if there isn't
-                    let _ = self.gs.bottles.push(PartialBottle::try_new(4, 0).unwrap());
+                    let added_bottle = self
+                        .gs
+                        .bottles
+                        .push(PartialBottle::try_new(4, 0).unwrap())
+                        .is_ok();
+                    if added_bottle {
+                        self.needs_screen_clear = true;
+                    }
                 }
             }
             SetupCursorState::Capacity { b_idx } => {
@@ -331,7 +361,10 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT,
                 //ensure no specific bottle is set
                 if self.specific_bottle_data.is_none() {
                     //remove a bottle if there is one to remove, do nothing if there isn't
-                    self.gs.bottles.pop();
+                    let removed_bottle = self.gs.bottles.pop().is_some();
+                    if removed_bottle {
+                        self.needs_screen_clear = true;
+                    }
                 }
             }
             SetupCursorState::Capacity { b_idx } => {
@@ -461,7 +494,10 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT,
                 //ensure no specific bottle is set
                 if self.specific_bottle_data.is_none() {
                     if let Some(bottle) = self.gs.bottles.get_mut(b_idx) {
-                        let _ = bottle.resize_in_place(bottle.capacity() + 1);
+                        let added_cap = bottle.resize_in_place(bottle.capacity() + 1).is_ok();
+                        if added_cap {
+                            self.needs_screen_clear = true;
+                        }
                     }
                 }
             }
@@ -509,7 +545,12 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT,
                         //don't allow 0 capacity; a 0 capacity doesn't cause any serious problem but does look weird
                         let new_capacity = bottle.capacity().saturating_sub(1);
                         if new_capacity >= 1 {
-                            let _ = bottle.resize_in_place(bottle.capacity().saturating_sub(1));
+                            let removed_cap = bottle
+                                .resize_in_place(bottle.capacity().saturating_sub(1))
+                                .is_ok();
+                            if removed_cap {
+                                self.needs_screen_clear = true;
+                            }
                         }
                     }
                 }
@@ -562,6 +603,7 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT,
             }
             SetupCursorState::Save => {
                 self.file_saved_path = save_menu_loop(&self.gs)?;
+                self.needs_screen_clear = true;
             }
         }
         Ok(false)

@@ -3,6 +3,7 @@ use crossterm::{
     cursor::{MoveDown, MoveToColumn},
     event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
     style::Print,
+    terminal::{Clear, ClearType},
     QueueableCommand
 };
 use std::{
@@ -115,6 +116,7 @@ impl<T: Send + 'static> WaitScreenState<T> {
     pub fn queue_display<U: QueueableCommand>(&mut self, ostream: &mut U) -> io::Result<()> {
         let is_finished = self.check_finished();
         let runtime = self.get_runtime();
+        ostream.queue(Clear(ClearType::CurrentLine))?;
         if is_finished {
             ostream.queue(Print(format!("Finished after running for {:?}", runtime)))?;
         } else {

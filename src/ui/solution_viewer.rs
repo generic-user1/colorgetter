@@ -2,6 +2,7 @@ use crossterm::{
     cursor::{MoveDown, MoveToColumn},
     event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
     style::Print,
+    terminal::{Clear, ClearType},
     QueueableCommand
 };
 use std::{io, num::NonZeroUsize};
@@ -37,15 +38,19 @@ impl<'a, 'b, GamestateT: SolvableGameState> SolutionViewerState<'a, 'b, Gamestat
     pub fn queue_display<T: QueueableCommand>(&self, ostream: &mut T) -> io::Result<()> {
         let (displayed_gs, displayed_pour) = self.get_displayed_state_and_pour();
         if let Some(displayed_pour) = displayed_pour {
-            ostream.queue(Print(format!(
-                "Step {} of {}: Pour from {} to {}",
-                self.current_pour_idx.unwrap() + 1,
-                self.solution.get_pours().len(),
-                displayed_pour.source_bottle_index + 1,
-                displayed_pour.dest_bottle_index + 1
-            )))?;
+            ostream
+                .queue(Clear(ClearType::CurrentLine))?
+                .queue(Print(format!(
+                    "Step {} of {}: Pour from {} to {}",
+                    self.current_pour_idx.unwrap() + 1,
+                    self.solution.get_pours().len(),
+                    displayed_pour.source_bottle_index + 1,
+                    displayed_pour.dest_bottle_index + 1
+                )))?;
         } else {
-            ostream.queue(Print("Base Gamestate:"))?;
+            ostream
+                .queue(Clear(ClearType::CurrentLine))?
+                .queue(Print("Base Gamestate:"))?;
         }
         ostream.queue(MoveDown(1))?.queue(MoveToColumn(0))?;
         displayed_gs.queue_display_rows(
