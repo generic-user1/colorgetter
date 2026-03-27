@@ -87,9 +87,45 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
                     //the penalty multiplier is 1.0 if the success chance is 1.0, and 2.0 if the success chance is 0.0
                     let dead_end_chance = 1.0 - rate_success_chance(&working_gs);
                     let dead_end_chance_penalty_mult = dead_end_chance + 1.0;
-                    let score = ((base_score as f64) * dead_end_chance_penalty_mult) as usize;
+                    let penalty_score =
+                        ((base_score as f64) * dead_end_chance_penalty_mult) as usize;
+
+                    //apply a small bonus for solutions whose last poured color is also on top of one or more other bottles
+                    //this is intended to be a tiebreaker for cases when multiple solutions would otherwise have equal scores
+                    let last_poured_color =
+                        possible_solution.get_pours().back().and_then(|last_pour| {
+                            working_gs
+                                .get_bottles()
+                                .get(last_pour.dest_bottle_index)
+                                .and_then(|b| b.get_top_color())
+                                .filter(|p| *p != PartialColoredWaterUnit::UnknownColor)
+                        });
+                    let final_score = if last_poured_color.is_some() {
+                        let mut matching_bottle_count = 0;
+                        for bottle in working_gs.bottles {
+                            if bottle.get_top_color() == last_poured_color {
+                                matching_bottle_count += 1;
+                            }
+                        }
+                        //has to be 2 or more since it'll always be at least one;
+                        //we determined what color to look at by looking at a bottle's top color
+                        //and then didn't exclude that bottle when searching for matching colors
+                        if matching_bottle_count >= 2 {
+                            penalty_score.saturating_sub(matching_bottle_count - 1)
+                        } else {
+                            penalty_score
+                        }
+                    } else {
+                        penalty_score
+                    };
+
                     results_send
-                        .send((solution_idx, possible_solution, score, dead_end_chance))
+                        .send((
+                            solution_idx,
+                            possible_solution,
+                            final_score,
+                            dead_end_chance
+                        ))
                         .expect("main thread hung up before expected");
                 }
             });
