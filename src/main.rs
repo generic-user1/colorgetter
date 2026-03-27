@@ -8,6 +8,7 @@ use colorgetter::{
 
 mod demystification_test;
 use demystification_test::demystification_test;
+use glob::glob;
 
 fn main() -> Result<(), AppError> {
     let args = Args::parse();
@@ -20,7 +21,7 @@ fn main() -> Result<(), AppError> {
             gamestate_file,
             verbose,
             num_repeats
-        } => demystification_test(gamestate_file, num_repeats, verbose)
+        } => test_demystification(gamestate_file, num_repeats, verbose)
     }
 }
 
@@ -53,6 +54,26 @@ fn solve(gamestate_file_path: Option<PathBuf>, save_demystified: bool) -> Result
         }
     }
     Ok(())
+}
+
+/// Run the demystification test
+fn test_demystification(
+    gamestate_paths: Vec<PathBuf>,
+    num_repeats: usize,
+    verbose: bool
+) -> Result<(), AppError> {
+    //for all paths, check if they contain the glob operator and expand them if they do
+    let mut expanded_gamestate_files = Vec::new();
+    for unprocessed_path in gamestate_paths {
+        if let Some(as_str) = unprocessed_path.to_str() {
+            for processed_path in glob(as_str).unwrap().filter_map(Result::ok) {
+                expanded_gamestate_files.push(processed_path);
+            }
+        } else {
+            expanded_gamestate_files.push(unprocessed_path);
+        }
+    }
+    demystification_test(&expanded_gamestate_files, num_repeats, verbose)
 }
 
 #[derive(Parser)]
@@ -90,6 +111,8 @@ enum Action {
         ///
         /// You can specify multiple saved game states to test in sequence if desired, but
         /// at least one game state is required
+        ///
+        /// As a convinience, you can also specify multiple game states to test in sequence using the glob operator '*'.
         #[arg(short, long, value_name = "FILE_PATH", required = true)]
         gamestate_file: Vec<PathBuf>,
 

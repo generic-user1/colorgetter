@@ -9,7 +9,7 @@ use colorgetter::{
 
 /// Run the demystification test
 pub fn demystification_test(
-    gamestate_file_paths: Vec<PathBuf>,
+    gamestate_file_paths: &[PathBuf],
     repeat_count: usize,
     verbose: bool
 ) -> Result<(), AppError> {
@@ -22,7 +22,7 @@ pub fn demystification_test(
     let mut loaded_gamestates = Vec::with_capacity(gamestate_file_count);
     for gamestate_file_path in gamestate_file_paths {
         let loaded_gamestate: KnownGameState<15, 15> =
-            load_partial_gamestate_from_file(&gamestate_file_path)?
+            load_partial_gamestate_from_file(gamestate_file_path)?
                 .try_into()
                 .or(Err(AppError::GameStateHadUnknownUnits))?;
         loaded_gamestates.push((loaded_gamestate, gamestate_file_path));
