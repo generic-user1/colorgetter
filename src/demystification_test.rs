@@ -15,6 +15,7 @@ pub fn demystification_test(
 ) -> Result<(), AppError> {
     let gamestate_file_count = gamestate_file_paths.len();
     let has_multiple = gamestate_file_count > 1;
+    let print_individual_tests = !(has_multiple && repeat_count > 1 && !verbose);
 
     //first, load all gamestate files - this is so that if any of the files are invalid, we error out early,
     //rather than performing the test on some of the files and then failing before all tests can be completed.
@@ -51,40 +52,40 @@ pub fn demystification_test(
                 PseudoPartialGameState::new(loaded_gamestate.clone()),
                 verbose
             );
-
-            let prefix = if repeat_count > 1 {
-                println!("Demystification test #{} results:", idx + 1);
-                "\t"
-            } else {
-                ""
-            };
-
-            println!("{}{} step(s)", prefix, auto_demystify_result.step_count);
-            println!("{}{} reset(s)", prefix, auto_demystify_result.reset_count);
-            println!(
-                "{}{:?} search duration",
-                prefix, auto_demystify_result.total_demystification_time
-            );
-            println!(
-                "{}{:?} max single-step duration",
-                prefix, auto_demystify_result.max_demystification_time
-            );
-            println!(
-                "{}{} pour(s)",
-                prefix, auto_demystify_result.total_pour_count
-            );
-            println!(
-                "{}final state solvable: {}",
-                prefix,
-                if auto_demystify_result.current_state_solvable {
-                    "yes"
+            if print_individual_tests {
+                let prefix = if repeat_count > 1 {
+                    println!("Demystification test #{} results:", idx + 1);
+                    "\t"
                 } else {
-                    "no"
-                }
-            );
+                    ""
+                };
 
+                println!("{}{} step(s)", prefix, auto_demystify_result.step_count);
+                println!("{}{} reset(s)", prefix, auto_demystify_result.reset_count);
+                println!(
+                    "{}{:?} search duration",
+                    prefix, auto_demystify_result.total_demystification_time
+                );
+                println!(
+                    "{}{:?} max single-step duration",
+                    prefix, auto_demystify_result.max_demystification_time
+                );
+                println!(
+                    "{}{} pour(s)",
+                    prefix, auto_demystify_result.total_pour_count
+                );
+                println!(
+                    "{}final state solvable: {}",
+                    prefix,
+                    if auto_demystify_result.current_state_solvable {
+                        "yes"
+                    } else {
+                        "no"
+                    }
+                );
+            }
             results.push(auto_demystify_result);
-            if repeat_count > 1 {
+            if repeat_count > 1 && print_individual_tests {
                 println!();
             }
         }
@@ -114,19 +115,25 @@ pub fn demystification_test(
             let overall_max_time = results.iter().map(|x| x.max_demystification_time).max();
 
             // print aggregate stats
-            println!("Averages:");
-            println!("\t{:.2} step(s)", avg_step_count,);
-            println!("\t{:.2} reset(s)", avg_reset_count);
-            println!("\t{:?} search duration", avg_time);
-            print!("\t{:?} max single-step duration", avg_max_time);
+            let prefix = if print_individual_tests {
+                println!("Averages:");
+                "\t"
+            } else {
+                ""
+            };
+            println!("{}{:.2} step(s)", prefix, avg_step_count,);
+            println!("{}{:.2} reset(s)", prefix, avg_reset_count);
+            println!("{}{:?} search duration", prefix, avg_time);
+            print!("{}{:?} max single-step duration", prefix, avg_max_time);
             if let Some(overall_max_time) = overall_max_time {
                 println!(" (overall max seen: {:?})", overall_max_time);
             } else {
                 println!();
             }
-            println!("\t{:.2} pour(s)", avg_pour_count);
+            println!("{}{:.2} pour(s)", prefix, avg_pour_count);
             println!(
-                "\t{} of {} final states solvable ({:.2}%)",
+                "{}{} of {} final states solvable ({:.2}%)",
+                prefix,
                 final_solvable_count,
                 results.len(),
                 (((final_solvable_count as f64) / (results.len() as f64)) * 100.0)
