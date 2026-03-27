@@ -208,7 +208,7 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT,
                     kind: k,
                     ..
                 } if k == KeyEventKind::Press || k == KeyEventKind::Repeat => {
-                    if m.contains(KeyModifiers::SHIFT) {
+                    if m.contains(KeyModifiers::SHIFT) || m.contains(KeyModifiers::CONTROL) {
                         self.handle_cursor_shift_right()
                     } else {
                         self.handle_cursor_right()
@@ -220,7 +220,7 @@ impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> SetupMenuState<MAX_BCOUNT,
                     kind: k,
                     ..
                 } if k == KeyEventKind::Press || k == KeyEventKind::Repeat => {
-                    if m.contains(KeyModifiers::SHIFT) {
+                    if m.contains(KeyModifiers::SHIFT) || m.contains(KeyModifiers::CONTROL) {
                         self.handle_cursor_shift_left()
                     } else {
                         self.handle_cursor_left()
