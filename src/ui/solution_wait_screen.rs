@@ -142,11 +142,10 @@ impl<T: Send + 'static> WaitScreenState<T> {
                     ..
                 } if m.contains(KeyModifiers::CONTROL) => return Err(UiRunError::ExitRequest),
                 KeyEvent { kind: k, .. }
-                    if k == KeyEventKind::Press || k == KeyEventKind::Repeat =>
+                    if (k == KeyEventKind::Press || k == KeyEventKind::Repeat)
+                        && self.check_finished() =>
                 {
-                    if self.check_finished() {
-                        return Ok(true);
-                    }
+                    return Ok(true);
                 }
                 _ => ()
             }
