@@ -4,7 +4,7 @@ use super::AppError;
 
 use colorgetter::{
     gamestate::{load_partial_gamestate_from_file, KnownGameState, PseudoPartialGameState},
-    solution::auto_demystify
+    solution::{auto_demystify, AutoDemystificationResult}
 };
 
 /// Run the demystification test
@@ -28,6 +28,8 @@ pub fn demystification_test(
                 .or(Err(AppError::GameStateHadUnknownUnits))?;
         loaded_gamestates.push((loaded_gamestate, gamestate_file_path));
     }
+
+    let mut all_results = Vec::with_capacity(gamestate_file_count * repeat_count);
 
     for (gamestate_idx, (loaded_gamestate, loaded_gamestate_path)) in
         loaded_gamestates.into_iter().enumerate()
@@ -91,54 +93,68 @@ pub fn demystification_test(
         }
 
         if results.len() > 1 {
-            //calculate aggregate stats
-            let final_solvable_count = results.iter().filter(|x| x.current_state_solvable).count();
-            let avg_reset_count = (results.iter().map(|x| x.reset_count).sum::<usize>() as f64)
-                / (results.len() as f64);
-
-            let avg_step_count = (results.iter().map(|x| x.step_count).sum::<usize>() as f64)
-                / (results.len() as f64);
-
-            let avg_pour_count = (results.iter().map(|x| x.total_pour_count).sum::<usize>() as f64)
-                / (results.len() as f64);
-
-            let avg_time = results
-                .iter()
-                .map(|x| x.total_demystification_time)
-                .sum::<Duration>()
-                .div_f64(results.len() as f64);
-            let avg_max_time = results
-                .iter()
-                .map(|x| x.max_demystification_time)
-                .sum::<Duration>()
-                .div_f64(results.len() as f64);
-            let overall_max_time = results.iter().map(|x| x.max_demystification_time).max();
-
-            // print aggregate stats
+            //calculate and print aggregate stats
             let prefix = if print_individual_tests {
-                println!("Averages:");
+                println!("Averages from repeats:");
                 "\t"
             } else {
                 ""
             };
-            println!("{}{:.2} step(s)", prefix, avg_step_count,);
-            println!("{}{:.2} reset(s)", prefix, avg_reset_count);
-            println!("{}{:?} search duration", prefix, avg_time);
-            print!("{}{:?} max single-step duration", prefix, avg_max_time);
-            if let Some(overall_max_time) = overall_max_time {
-                println!(" (overall max seen: {:?})", overall_max_time);
-            } else {
-                println!();
-            }
-            println!("{}{:.2} pour(s)", prefix, avg_pour_count);
-            println!(
-                "{}{} of {} final states solvable ({:.2}%)",
-                prefix,
-                final_solvable_count,
-                results.len(),
-                (((final_solvable_count as f64) / (results.len() as f64)) * 100.0)
-            );
+            print_aggregates(&results, prefix);
         }
+        all_results.extend(results);
     }
+
+    if all_results.len() > 1 {
+        println!("\nOverall averages:");
+        print_aggregates(&all_results, "\t");
+    }
+
     Ok(())
+}
+
+fn print_aggregates<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
+    results: &[AutoDemystificationResult<MAX_BCOUNT, B_MAX_CAP>],
+    prefix: &str
+) {
+    let final_solvable_count = results.iter().filter(|x| x.current_state_solvable).count();
+    let avg_reset_count =
+        (results.iter().map(|x| x.reset_count).sum::<usize>() as f64) / (results.len() as f64);
+
+    let avg_step_count =
+        (results.iter().map(|x| x.step_count).sum::<usize>() as f64) / (results.len() as f64);
+
+    let avg_pour_count =
+        (results.iter().map(|x| x.total_pour_count).sum::<usize>() as f64) / (results.len() as f64);
+
+    let avg_time = results
+        .iter()
+        .map(|x| x.total_demystification_time)
+        .sum::<Duration>()
+        .div_f64(results.len() as f64);
+    let avg_max_time = results
+        .iter()
+        .map(|x| x.max_demystification_time)
+        .sum::<Duration>()
+        .div_f64(results.len() as f64);
+    let overall_max_time = results.iter().map(|x| x.max_demystification_time).max();
+
+    // print aggregate stats
+    println!("{}{:.2} step(s)", prefix, avg_step_count,);
+    println!("{}{:.2} reset(s)", prefix, avg_reset_count);
+    println!("{}{:?} search duration", prefix, avg_time);
+    print!("{}{:?} max single-step duration", prefix, avg_max_time);
+    if let Some(overall_max_time) = overall_max_time {
+        println!(" (overall max seen: {:?})", overall_max_time);
+    } else {
+        println!();
+    }
+    println!("{}{:.2} pour(s)", prefix, avg_pour_count);
+    println!(
+        "{}{} of {} final states solvable ({:.2}%)",
+        prefix,
+        final_solvable_count,
+        results.len(),
+        (((final_solvable_count as f64) / (results.len() as f64)) * 100.0)
+    );
 }
