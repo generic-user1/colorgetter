@@ -106,6 +106,7 @@ pub fn find_many_solutions<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
         .collect()
 }
 
+/// For some [SolvableGameState] `base_gamestate`, try to find a [Solution] that, instead of leading to a solved state, leads to a specific `target` state.
 pub fn find_path_to_specific<'a, GamestateT: SolvableGameState>(
     base_gamestate: &'a GamestateT,
     target: &GamestateT,
