@@ -5,15 +5,81 @@ use crate::{
 };
 use heapless::{CapacityError, Vec};
 use serde::{Deserialize, Serialize};
-
+use std::hash::Hash;
 mod pseudo_partial_gamestate;
 pub use pseudo_partial_gamestate::{PseudoPartialGameState, PseudoPartialGameStateError};
 
 /// The state a particular game is in, including [PartialBottle]s
 /// instead of regular [KnownBottle](crate::bottle::KnownBottle)s
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Deserialize, Serialize, Eq)]
 pub struct PartialGameState<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> {
     pub bottles: Vec<PartialBottle<B_MAX_CAP>, MAX_BCOUNT>
+}
+
+/// Given some [PartialBottle]s, return a [heapless::Vec] that contains the same bottles, but
+/// with all bottles containing only known units first (and sorted into standard order), and all
+/// bottles containing at least some unknown units last (in their order of appearance)
+///
+/// We accept only [heapless::Vec] (rather than `&[PartialBottle]`) as input so we can guarantee that all input bottles will fit in the output
+fn sort_known_only<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
+    bottles: &heapless::Vec<PartialBottle<B_MAX_CAP>, MAX_BCOUNT>
+) -> heapless::Vec<&PartialBottle<B_MAX_CAP>, MAX_BCOUNT> {
+    let mut output = heapless::Vec::new();
+    //first, place all known-only bottles into the output
+    for bottle in bottles.iter().filter(|b| b.get_unknown_count() == 0) {
+        output
+            .push(bottle)
+            .expect("ran out of capacity while inserting known-only bottles");
+    }
+    //sort the known-only bottles
+    output.sort();
+    //insert the remaining bottles (those that contain unknown units)
+    for bottle in bottles.iter().filter(|b| b.get_unknown_count() > 0) {
+        output
+            .push(bottle)
+            .expect("ran out of capacity while inserting unknown-containing bottles")
+    }
+    output
+}
+
+impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> Ord
+    for PartialGameState<MAX_BCOUNT, B_MAX_CAP>
+{
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let our_std_order_bottles = sort_known_only(&self.bottles);
+        let other_std_order_bottles = sort_known_only(&other.bottles);
+        our_std_order_bottles.cmp(&other_std_order_bottles)
+    }
+}
+
+impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> PartialOrd
+    for PartialGameState<MAX_BCOUNT, B_MAX_CAP>
+{
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> PartialEq
+    for PartialGameState<MAX_BCOUNT, B_MAX_CAP>
+{
+    fn eq(&self, other: &Self) -> bool {
+        let our_std_order_bottles = sort_known_only(&self.bottles);
+        let other_std_order_bottles = sort_known_only(&other.bottles);
+
+        our_std_order_bottles == other_std_order_bottles
+    }
+}
+impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> Hash
+    for PartialGameState<MAX_BCOUNT, B_MAX_CAP>
+{
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        let std_order_bottles = sort_known_only(&self.bottles);
+
+        for bottle in std_order_bottles {
+            bottle.hash(state);
+        }
+    }
 }
 
 impl<const MAX_BCOUNT: usize, const B_MAX_CAP: usize> TryFrom<&[PartialBottle<B_MAX_CAP>]>
