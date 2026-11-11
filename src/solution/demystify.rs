@@ -35,6 +35,14 @@ pub struct DemystifyNextStepStats {
     pub dead_end_chance: f64
 }
 
+struct RatedSolution<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize> {
+    pub solution_idx: usize,
+    pub possible_solution: Solution<'a, PartialGameState<MAX_BCOUNT, B_MAX_CAP>>,
+    pub score: usize,
+    pub dead_end_chance: f64,
+    pub resulting_state: PartialGameState<MAX_BCOUNT, B_MAX_CAP>
+}
+
 /// Try to find a [Solution] for the given [PartialGameState] that leads to revealing a new unknown color unit
 /// while using a prediction technique to try and prevent dead-ends. Similar to [Solution::try_new], will return [None]
 /// if no [Solution] can be found.
@@ -102,7 +110,7 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
                         });
                     let final_score = if last_poured_color.is_some() {
                         let mut matching_bottle_count = 0;
-                        for bottle in working_gs.bottles {
+                        for bottle in working_gs.get_bottles() {
                             if bottle.get_top_color() == last_poured_color {
                                 matching_bottle_count += 1;
                             }
@@ -120,12 +128,13 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
                     };
 
                     results_send
-                        .send((
+                        .send(RatedSolution {
                             solution_idx,
                             possible_solution,
-                            final_score,
-                            dead_end_chance
-                        ))
+                            score: final_score,
+                            dead_end_chance,
+                            resulting_state: working_gs
+                        })
                         .expect("main thread hung up before expected");
                 }
             });
@@ -145,46 +154,80 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
         //drop the main thread's sender to indicate to the workers that there's no more work to do
         drop(work_send);
 
-        //iterate through results sent back by the workers and pick the lowest scoring one
-        //when there are multiple solutions with the same score, pick the one with the lowest index
-        //(the one that find_many_solutions would've found first) - this ensures that this function remains
-        //deterministic despite variability in worker threads' timings
-        let mut min_seen_score = usize::MAX;
-        let mut min_idx_for_score = usize::MAX;
-        let mut solution_to_use = None;
-        let mut solution_dead_end_chance = 1.0;
-        let mut equal_scoring_solution_count = 0;
-        while let Ok((solution_idx, possible_solution, score, dead_end_chance)) =
-            results_recv.recv()
-        {
-            if score < min_seen_score {
-                min_seen_score = score;
-                min_idx_for_score = solution_idx;
-                solution_to_use = Some(possible_solution);
-                solution_dead_end_chance = dead_end_chance;
-                equal_scoring_solution_count = 1;
-            } else if score == min_seen_score {
-                equal_scoring_solution_count += 1;
-                if solution_idx < min_idx_for_score {
-                    min_idx_for_score = solution_idx;
-                    solution_to_use = Some(possible_solution);
-                    solution_dead_end_chance = dead_end_chance;
-                }
-            }
+        //collect results sent back by the workers and sort by score in ascending order
+        //when there are multiple solutions with the same score, the one with the lowest index
+        //(the one that find_many_solutions would've found first) comes first - this ensures that
+        //this function remains deterministic despite variability in worker threads' timings
+        let mut all_solutions = Vec::with_capacity(solutions_checked);
+        while let Ok(rated_solution) = results_recv.recv() {
+            all_solutions.push(rated_solution);
         }
+        all_solutions.sort_by_key(|s| (s.score, s.solution_idx));
 
-        solution_to_use.map(|s| {
-            (
-                s,
+        if let Some(best_scoring_solution) = all_solutions.first() {
+            let solution_to_use = if let Some(base_revealed_bottle_idx) =
+                revealed_bottle_idx(&best_scoring_solution.resulting_state)
+            {
+                let mut shortest_solution = None;
+                //iterate through the other solutions, looking for a shorter solution from which
+                //we could still reach the best scoring solution's end state
+                for other_solution in &all_solutions[1..] {
+                    let current_shortest = shortest_solution
+                        .unwrap_or(best_scoring_solution)
+                        .possible_solution
+                        .pours
+                        .len();
+
+                    if other_solution.possible_solution.get_pours().len() > current_shortest {
+                        //if this solution is longer than the current shortest known solution, we can skip it
+                        continue;
+                    } else if revealed_bottle_idx(&other_solution.resulting_state)
+                        != Some(base_revealed_bottle_idx)
+                    {
+                        //if this solution doesn't reveal the same bottle, it's not possible to get to the target from here,
+                        //so we can skip it
+                        continue;
+                    }
+                    //determine whether there is a path from here to the target, and save this as the shortest known solution if there is
+                    if find_path_to_specific(
+                        &other_solution.resulting_state,
+                        &best_scoring_solution.resulting_state,
+                        0
+                    )
+                    .is_some()
+                    {
+                        shortest_solution = Some(other_solution);
+                    }
+                }
+                shortest_solution.unwrap_or(best_scoring_solution)
+            } else {
+                best_scoring_solution
+            };
+            Some((
+                solution_to_use.possible_solution.clone(), //todo: ideally, avoid this clone somehow
                 DemystifyNextStepStats {
                     solutions_checked,
-                    min_score: min_seen_score,
-                    equal_scoring_solution_count,
-                    dead_end_chance: solution_dead_end_chance
+                    min_score: best_scoring_solution.score,
+                    equal_scoring_solution_count: 0, //todo: fix this count
+                    dead_end_chance: solution_to_use.dead_end_chance
                 }
-            )
-        })
+            ))
+        } else {
+            None
+        }
     })
+}
+
+/// Returns the index of a bottle with a revealed unknown color. If there are multiple, returns the lowest index. If there are no revealed unknown units, returns None.
+fn revealed_bottle_idx<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
+    gs: &PartialGameState<MAX_BCOUNT, B_MAX_CAP>
+) -> Option<usize> {
+    for (idx, bottle) in gs.bottles.iter().enumerate() {
+        if bottle.get_top_color() == Some(PartialColoredWaterUnit::UnknownColor) {
+            return Some(idx);
+        }
+    }
+    None
 }
 
 /// Rate how likely it is for some partial gamestate to be possible to progress from by replacing the top unknown unit with each color,

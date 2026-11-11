@@ -238,6 +238,10 @@ impl<const MAX_CAP: usize> Bottle for KnownBottle<MAX_CAP> {
         self.capacity
     }
 
+    fn get_top_color(&self) -> Option<PartialColoredWaterUnit> {
+        self.content.last().map(|&c| c.into())
+    }
+
     fn sample_at(&self, idx: usize) -> BottleSampleResult {
         if idx > self.capacity() {
             BottleSampleResult::OutOfBounds
