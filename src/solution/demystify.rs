@@ -154,68 +154,87 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
         //drop the main thread's sender to indicate to the workers that there's no more work to do
         drop(work_send);
 
-        //collect results sent back by the workers and sort by score in ascending order
-        //when there are multiple solutions with the same score, the one with the lowest index
-        //(the one that find_many_solutions would've found first) comes first - this ensures that
-        //this function remains deterministic despite variability in worker threads' timings
-        let mut all_solutions = Vec::with_capacity(solutions_checked);
+        //collect results sent back by the workers
+        let mut rated_solutions = Vec::with_capacity(solutions_checked);
         while let Ok(rated_solution) = results_recv.recv() {
-            all_solutions.push(rated_solution);
+            rated_solutions.push(rated_solution);
         }
-        all_solutions.sort_by_key(|s| (s.score, s.solution_idx));
-
-        if let Some(best_scoring_solution) = all_solutions.first() {
-            let solution_to_use = if let Some(base_revealed_bottle_idx) =
-                revealed_bottle_idx(&best_scoring_solution.resulting_state)
-            {
-                let mut shortest_solution = None;
-                //iterate through the other solutions, looking for a shorter solution from which
-                //we could still reach the best scoring solution's end state
-                for other_solution in &all_solutions[1..] {
-                    let current_shortest = shortest_solution
-                        .unwrap_or(best_scoring_solution)
-                        .possible_solution
-                        .pours
-                        .len();
-
-                    if other_solution.possible_solution.get_pours().len() > current_shortest {
-                        //if this solution is longer than the current shortest known solution, we can skip it
-                        continue;
-                    } else if revealed_bottle_idx(&other_solution.resulting_state)
-                        != Some(base_revealed_bottle_idx)
-                    {
-                        //if this solution doesn't reveal the same bottle, it's not possible to get to the target from here,
-                        //so we can skip it
-                        continue;
-                    }
-                    //determine whether there is a path from here to the target, and save this as the shortest known solution if there is
-                    if find_path_to_specific(
-                        &other_solution.resulting_state,
-                        &best_scoring_solution.resulting_state,
-                        0
-                    )
-                    .is_some()
-                    {
-                        shortest_solution = Some(other_solution);
-                    }
-                }
-                shortest_solution.unwrap_or(best_scoring_solution)
-            } else {
-                best_scoring_solution
-            };
-            Some((
-                solution_to_use.possible_solution.clone(), //todo: ideally, avoid this clone somehow
+        let solution_to_use = shortest_with_path_to_best(rated_solutions);
+        solution_to_use.map(|s| {
+            (
+                s.possible_solution,
+                //todo: fix stats. the min_score we return currently isn't the min_score we actually found,
+                //the equal_scoring_solution_count is always zero, and we probably want to somehow communicate the delta between the best solution found
+                //and the solution actually returned.
                 DemystifyNextStepStats {
                     solutions_checked,
-                    min_score: best_scoring_solution.score,
-                    equal_scoring_solution_count: 0, //todo: fix this count
-                    dead_end_chance: solution_to_use.dead_end_chance
+                    min_score: s.score,
+                    equal_scoring_solution_count: 0,
+                    dead_end_chance: s.dead_end_chance
                 }
-            ))
-        } else {
-            None
-        }
+            )
+        })
     })
+}
+
+/// Find the best scoring state out of all the solutions' resulting states, then pick the shortest solution
+/// whose resulting state either _is_ that best scoring state, or has a path to that best scoring state.
+fn shortest_with_path_to_best<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
+    mut solutions: Vec<RatedSolution<'a, MAX_BCOUNT, B_MAX_CAP>>
+) -> Option<RatedSolution<'a, MAX_BCOUNT, B_MAX_CAP>> {
+    //find the best scoring solution. if multiple solutions have the same score, prefer those with a lower `solution_idx`
+    //(i.e. that were found first). Track which one is best by index within the solutions vec so it can be removed
+    let mut best_scoring_solution_idx = 0;
+    for (idx, solution) in solutions.iter().enumerate() {
+        match solutions.get(best_scoring_solution_idx) {
+            Some(b) => {
+                if solution.score < b.score
+                    || (solution.score == b.score && solution.solution_idx < b.solution_idx)
+                {
+                    best_scoring_solution_idx = idx;
+                }
+            }
+            None => best_scoring_solution_idx = idx
+        }
+    }
+
+    if best_scoring_solution_idx >= solutions.len() {
+        //no best_scoring_solution found
+        return None;
+    }
+    let best_scoring_solution = solutions.swap_remove(best_scoring_solution_idx);
+    let best_resulting_state = best_scoring_solution.resulting_state.clone();
+    let best_revealed_bottle_idx = revealed_bottle_idx(&best_resulting_state);
+
+    //look through other solutions to see if we can find a shorter one where there still exists a path
+    //from its resulting state to the best scoring solution's resulting state
+    let mut solution_to_use = best_scoring_solution;
+    for other_solution in solutions {
+        //if this solution is longer than the current solution's length, we can skip it
+        if other_solution.possible_solution.pours.len()
+            > solution_to_use.possible_solution.pours.len()
+        {
+            continue;
+        }
+
+        //If this solution does not reveal the same bottle as the current solution, we know up front
+        //that there can't be a path from its state to the best state, so we can skip it.
+        //Logically, all solutions should have a revealed bottle index but if they somehow don't, we skip it.
+        let this_revealed_bottle_idx = revealed_bottle_idx(&other_solution.resulting_state);
+        if this_revealed_bottle_idx.is_none()
+            || this_revealed_bottle_idx != best_revealed_bottle_idx
+        {
+            continue;
+        }
+
+        //check if we can get from this solution's state to the best scoring solution's state
+        if find_path_to_specific(&other_solution.resulting_state, &best_resulting_state, 0)
+            .is_some()
+        {
+            solution_to_use = other_solution;
+        }
+    }
+    Some(solution_to_use)
 }
 
 /// Returns the index of a bottle with a revealed unknown color. If there are multiple, returns the lowest index. If there are no revealed unknown units, returns None.
