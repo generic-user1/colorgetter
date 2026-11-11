@@ -19,6 +19,7 @@ pub use auto_demystify::{auto_demystify, AutoDemystificationResult};
 /// Although represented as Pours, each Pour is guaranteed
 /// to be valid for the result of the previous Pour (except the first Pour, which
 /// is instead guaranteed to be valid for the provided `base_gamestate`)
+#[derive(Debug, Clone)]
 pub struct Solution<'a, GamestateT: SolvableGameState> {
     base_gamestate: &'a GamestateT,
     pours: VecDeque<Pour>
@@ -33,7 +34,7 @@ impl<'a, GamestateT: SolvableGameState> Solution<'a, GamestateT> {
     pub fn try_new(base_gamestate: &'a GamestateT, max_depth: u8) -> Option<Self> {
         let mut solution_state = SolutionState::new(base_gamestate);
 
-        find_solving_pours(&mut solution_state, max_depth, true, 1);
+        find_solving_pours(&mut solution_state, None, max_depth, true, 1);
         solution_state
             .take_solving_pour_sequence(0)
             .map(|pours| Self {
@@ -94,7 +95,7 @@ pub fn find_many_solutions<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
 ) -> Vec<Solution<'a, PartialGameState<MAX_BCOUNT, B_MAX_CAP>>> {
     let mut solution_state = SolutionState::new(base_gamestate);
 
-    find_solving_pours(&mut solution_state, max_depth, true, max_count);
+    find_solving_pours(&mut solution_state, None, max_depth, true, max_count);
     solution_state
         .all_solving_pour_sequences()
         .into_iter()
@@ -103,6 +104,22 @@ pub fn find_many_solutions<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
             pours
         })
         .collect()
+}
+
+pub fn find_path_to_specific<'a, GamestateT: SolvableGameState>(
+    base_gamestate: &'a GamestateT,
+    target: &GamestateT,
+    max_depth: u8
+) -> Option<Solution<'a, GamestateT>> {
+    let mut solution_state = SolutionState::new(base_gamestate);
+
+    find_solving_pours(&mut solution_state, Some(target), max_depth, true, 1);
+    solution_state
+        .take_solving_pour_sequence(0)
+        .map(|pours| Solution {
+            base_gamestate,
+            pours
+        })
 }
 
 /// For the given SolutionState, generate possible pours and
@@ -120,8 +137,12 @@ pub fn find_many_solutions<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
 ///
 /// `max_solution_count` is the number of solutions found after which to stop searching for more. If this is zero,
 /// there is effectively no limit.
+///
+/// `target` is a target state to find. If specified, will look for a path to the given `target` (and ignore whether the resulting
+/// state's `is_solved` returns true).
 fn find_solving_pours<T: SolvableGameState>(
     state: &mut SolutionState<T>,
+    target: Option<&T>,
     max_depth: u8,
     cutoff: bool,
     max_solution_count: usize
@@ -139,7 +160,13 @@ fn find_solving_pours<T: SolvableGameState>(
                 .push_front((layer_idx, gamestate_to_try_idx));
             return;
         }
-        if gamestate_to_try.is_solved() {
+
+        let gs_is_solved = match target {
+            Some(t) => *t == *gamestate_to_try,
+            None => gamestate_to_try.is_solved()
+        };
+
+        if gs_is_solved {
             state.finished_gamestates.push(gamestate_to_try_idx);
             if max_solution_count > 0 && state.finished_gamestates.len() >= max_solution_count {
                 return;
