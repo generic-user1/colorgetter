@@ -121,6 +121,12 @@ fn print_aggregates<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
     let avg_reset_count =
         (results.iter().map(|x| x.reset_count).sum::<usize>() as f64) / (results.len() as f64);
 
+    let chance_of_any_reset = (results
+        .iter()
+        .map(|x| x.reset_count.clamp(0, 1))
+        .sum::<usize>() as f64)
+        / (results.len() as f64);
+
     let avg_step_count =
         (results.iter().map(|x| x.step_count).sum::<usize>() as f64) / (results.len() as f64);
 
@@ -141,7 +147,12 @@ fn print_aggregates<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
 
     // print aggregate stats
     println!("{}{:.2} step(s)", prefix, avg_step_count,);
-    println!("{}{:.2} reset(s)", prefix, avg_reset_count);
+    println!(
+        "{}{:.2} reset(s) ({:.2}% chance of at least one reset)",
+        prefix,
+        avg_reset_count,
+        chance_of_any_reset * 100.0
+    );
     println!("{}{:?} search duration", prefix, avg_time);
     print!("{}{:?} max single-step duration", prefix, avg_max_time);
     if let Some(overall_max_time) = overall_max_time {
