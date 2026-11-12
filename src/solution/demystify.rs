@@ -26,9 +26,6 @@ pub struct DemystifyNextStepStats {
     /// likely that [Solution] is to lead to a dead-end, and the lowest score is considered best.
     pub min_score: usize,
 
-    /// The number of possible [Solution]s that had a score equal to the [Solution] picked
-    pub equal_scoring_solution_count: usize,
-
     /// An estimation of how likely it is that this [Solution] will lead to a dead-end
     /// as a number in the range 0.0 - 1.0 inclusive. A value of 0.0 indicates a 0% chance of
     /// an immediate dead-end, and a value of 1.0 indicates a 100% chance of an immediate dead-end.
@@ -159,18 +156,15 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
         while let Ok(rated_solution) = results_recv.recv() {
             rated_solutions.push(rated_solution);
         }
+        let solutions_checked = rated_solutions.len();
         let solution_to_use = shortest_with_path_to_best(rated_solutions);
-        solution_to_use.map(|s| {
+        solution_to_use.map(|(solution, min_score)| {
             (
-                s.possible_solution,
-                //todo: fix stats. the min_score we return currently isn't the min_score we actually found,
-                //the equal_scoring_solution_count is always zero, and we probably want to somehow communicate the delta between the best solution found
-                //and the solution actually returned.
+                solution.possible_solution,
                 DemystifyNextStepStats {
                     solutions_checked,
-                    min_score: s.score,
-                    equal_scoring_solution_count: 0,
-                    dead_end_chance: s.dead_end_chance
+                    min_score,
+                    dead_end_chance: solution.dead_end_chance
                 }
             )
         })
@@ -179,11 +173,12 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
 
 /// Find the best scoring state out of all the solutions' resulting states, then pick the shortest solution
 /// whose resulting state either _is_ that best scoring state, or has a path to that best scoring state.
+/// Returns a 2-tuple `(picked_solution, best_seen_score)`
 fn shortest_with_path_to_best<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
     mut solutions: Vec<RatedSolution<'a, MAX_BCOUNT, B_MAX_CAP>>
-) -> Option<RatedSolution<'a, MAX_BCOUNT, B_MAX_CAP>> {
+) -> Option<(RatedSolution<'a, MAX_BCOUNT, B_MAX_CAP>, usize)> {
     //find the best scoring solution. if multiple solutions have the same score, prefer those with a lower `solution_idx`
-    //(i.e. that were found first). Track which one is best by index within the solutions vec so it can be removed
+    //(i.e. that were found first). Track which one is best by index within the solutions vec so it can be removed.
     let mut best_scoring_solution_idx = 0;
     for (idx, solution) in solutions.iter().enumerate() {
         match solutions.get(best_scoring_solution_idx) {
@@ -203,6 +198,7 @@ fn shortest_with_path_to_best<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usiz
         return None;
     }
     let best_scoring_solution = solutions.swap_remove(best_scoring_solution_idx);
+    let best_score = best_scoring_solution.score;
     let best_resulting_state = best_scoring_solution.resulting_state.clone();
     let best_revealed_bottle_idx = revealed_bottle_idx(&best_resulting_state);
 
@@ -234,7 +230,7 @@ fn shortest_with_path_to_best<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usiz
             solution_to_use = other_solution;
         }
     }
-    Some(solution_to_use)
+    Some((solution_to_use, best_score))
 }
 
 /// Returns the index of a bottle with a revealed unknown color. If there are multiple, returns the lowest index. If there are no revealed unknown units, returns None.
