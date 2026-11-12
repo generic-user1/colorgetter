@@ -118,39 +118,43 @@ fn print_aggregates<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
     prefix: &str
 ) {
     let final_solvable_count = results.iter().filter(|x| x.current_state_solvable).count();
-    let avg_reset_count =
-        (results.iter().map(|x| x.reset_count).sum::<usize>() as f64) / (results.len() as f64);
 
-    let chance_of_any_reset = (results
-        .iter()
-        .map(|x| x.reset_count.clamp(0, 1))
-        .sum::<usize>() as f64)
-        / (results.len() as f64);
+    let total_solution_count = results.len() as f64;
+    let total_reset_count = results.iter().map(|x| x.reset_count).sum::<usize>() as f64;
+    let count_with_resets = results.iter().filter(|x| x.reset_count >= 1).count() as f64;
+
+    let avg_reset_count = total_reset_count / total_solution_count;
+    let chance_of_any_reset = count_with_resets / total_solution_count;
+    let avg_reset_count_excluding_reset_free = total_reset_count / count_with_resets;
 
     let avg_step_count =
-        (results.iter().map(|x| x.step_count).sum::<usize>() as f64) / (results.len() as f64);
+        (results.iter().map(|x| x.step_count).sum::<usize>() as f64) / total_solution_count;
 
     let avg_pour_count =
-        (results.iter().map(|x| x.total_pour_count).sum::<usize>() as f64) / (results.len() as f64);
+        (results.iter().map(|x| x.total_pour_count).sum::<usize>() as f64) / total_solution_count;
 
     let avg_time = results
         .iter()
         .map(|x| x.total_demystification_time)
         .sum::<Duration>()
-        .div_f64(results.len() as f64);
+        .div_f64(total_solution_count);
     let avg_max_time = results
         .iter()
         .map(|x| x.max_demystification_time)
         .sum::<Duration>()
-        .div_f64(results.len() as f64);
+        .div_f64(total_solution_count);
     let overall_max_time = results.iter().map(|x| x.max_demystification_time).max();
 
     // print aggregate stats
-    println!("{}{:.2} step(s)", prefix, avg_step_count,);
+    println!("{}{:.2} step(s)", prefix, avg_step_count);
+    println!("{}{:.2} reset(s)", prefix, avg_reset_count);
     println!(
-        "{}{:.2} reset(s) ({:.2}% chance of at least one reset)",
+        "{}{:.2} reset(s) excluding 0-reset solutions",
+        prefix, avg_reset_count_excluding_reset_free
+    );
+    println!(
+        "{}{:.2}% chance of at least 1 reset",
         prefix,
-        avg_reset_count,
         chance_of_any_reset * 100.0
     );
     println!("{}{:?} search duration", prefix, avg_time);
