@@ -34,10 +34,10 @@ pub struct DemystifyNextStepStats {
 
 struct RatedSolution<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize> {
     pub solution_idx: usize,
-    pub possible_solution: Solution<'a, PartialGameState<MAX_BCOUNT, B_MAX_CAP>>,
+    pub possible_solution: Solution<'a, PartialGameState<MAX_BCOUNT, B_MAX_CAP, false>>,
     pub score: usize,
     pub dead_end_chance: f64,
-    pub resulting_state: PartialGameState<MAX_BCOUNT, B_MAX_CAP>
+    pub resulting_state: PartialGameState<MAX_BCOUNT, B_MAX_CAP, true>
 }
 
 /// Try to find a [Solution] for the given [PartialGameState] that leads to revealing a new unknown color unit
@@ -75,7 +75,7 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
         for _ in 0..thread_count {
             //type inference fails here for some reason so we have to specify the type of the
             //cloned work_recv explicitly
-            let work_recv: Receiver<(usize, Solution<'_, PartialGameState<_, _>>)> =
+            let work_recv: Receiver<(usize, Solution<'_, PartialGameState<_, _, _>>)> =
                 work_recv.clone();
             let results_send = results_send.clone();
             s.spawn(move || {
@@ -130,7 +130,7 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
                             possible_solution,
                             score: final_score,
                             dead_end_chance,
-                            resulting_state: working_gs
+                            resulting_state: working_gs.into()
                         })
                         .expect("main thread hung up before expected");
                 }
@@ -234,8 +234,8 @@ fn shortest_with_path_to_best<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usiz
 }
 
 /// Returns the index of a bottle with a revealed unknown color. If there are multiple, returns the lowest index. If there are no revealed unknown units, returns None.
-fn revealed_bottle_idx<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
-    gs: &PartialGameState<MAX_BCOUNT, B_MAX_CAP>
+fn revealed_bottle_idx<const MAX_BCOUNT: usize, const B_MAX_CAP: usize, const ORDERLESS: bool>(
+    gs: &PartialGameState<MAX_BCOUNT, B_MAX_CAP, ORDERLESS>
 ) -> Option<usize> {
     for (idx, bottle) in gs.bottles.iter().enumerate() {
         if bottle.get_top_color() == Some(PartialColoredWaterUnit::UnknownColor) {
