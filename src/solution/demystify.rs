@@ -208,7 +208,7 @@ fn shortest_with_path_to_best<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usiz
     for other_solution in solutions {
         //if this solution is longer than the current solution's length, we can skip it
         if other_solution.possible_solution.pours.len()
-            > solution_to_use.possible_solution.pours.len()
+            >= solution_to_use.possible_solution.pours.len()
         {
             continue;
         }
