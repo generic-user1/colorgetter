@@ -153,8 +153,10 @@ fn print_aggregates<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
         prefix, avg_reset_count_excluding_reset_free
     );
     println!(
-        "{}{:.2}% chance of at least 1 reset",
+        "{}{} of {} solutions required at least 1 reset ({:.2}%)",
         prefix,
+        count_with_resets,
+        results.len(),
         chance_of_any_reset * 100.0
     );
     println!("{}{:?} search duration", prefix, avg_time);
