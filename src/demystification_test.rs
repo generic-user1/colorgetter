@@ -148,10 +148,12 @@ fn print_aggregates<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
     // print aggregate stats
     println!("{}{:.2} step(s)", prefix, avg_step_count);
     println!("{}{:.2} reset(s)", prefix, avg_reset_count);
-    println!(
-        "{}{:.2} reset(s) excluding 0-reset solutions",
-        prefix, avg_reset_count_excluding_reset_free
-    );
+    if !avg_reset_count_excluding_reset_free.is_nan() {
+        println!(
+            "{}{:.2} reset(s) excluding 0-reset solutions",
+            prefix, avg_reset_count_excluding_reset_free
+        );
+    }
     println!(
         "{}{} of {} solutions required at least 1 reset ({:.2}%)",
         prefix,
