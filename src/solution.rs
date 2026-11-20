@@ -34,7 +34,7 @@ impl<'a, GamestateT: SolvableGameState> Solution<'a, GamestateT> {
     pub fn try_new(base_gamestate: &'a GamestateT, max_depth: u8) -> Option<Self> {
         let mut solution_state = SolutionState::new(base_gamestate);
 
-        find_solving_pours(&mut solution_state, None, max_depth, true, 1);
+        find_solving_pours(&mut solution_state, is_solved, max_depth, true, 1);
         solution_state
             .take_solving_pour_sequence(0)
             .map(|pours| Self {
@@ -95,7 +95,7 @@ pub fn find_many_solutions<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
 ) -> Vec<Solution<'a, PartialGameState<MAX_BCOUNT, B_MAX_CAP>>> {
     let mut solution_state = SolutionState::new(base_gamestate);
 
-    find_solving_pours(&mut solution_state, None, max_depth, true, max_count);
+    find_solving_pours(&mut solution_state, is_solved, max_depth, true, max_count);
     solution_state
         .all_solving_pour_sequences()
         .into_iter()
@@ -114,7 +114,9 @@ pub fn find_path_to_specific<'a, GamestateT: SolvableGameState>(
 ) -> Option<Solution<'a, GamestateT>> {
     let mut solution_state = SolutionState::new(base_gamestate);
 
-    find_solving_pours(&mut solution_state, Some(target), max_depth, true, 1);
+    let predicate = |gs: &GamestateT| gs == target;
+
+    find_solving_pours(&mut solution_state, predicate, max_depth, true, 1);
     solution_state
         .take_solving_pour_sequence(0)
         .map(|pours| Solution {
@@ -123,11 +125,20 @@ pub fn find_path_to_specific<'a, GamestateT: SolvableGameState>(
         })
 }
 
+/// Basic predicate for [find_solving_pours] that simply returns the result of the gamestate's [SolvableGameState::is_solved]
+fn is_solved<T: SolvableGameState>(gs: &T) -> bool {
+    gs.is_solved()
+}
+
 /// For the given SolutionState, generate possible pours and
 /// identify a list of pours that, when applied in order, leads to a solution.
 ///
 /// Winning game state indexes are added to the given `state` and can be converted into sequences of pours
 /// by calling the `get_solving_pour_sequences` method of the SolutionState.
+///
+/// `predicate` is some Fn that accepts some gamestate and returns whether it is solved as a boolean. Through this, you can alter
+/// what it means to be 'solved'. Most of the time, you will want to use `is_solved`, which simply uses the gamestate's [SolvableGameState::is_solved]
+/// to make this determination.
 ///
 /// `max_depth` specifies how many layers deep to search. When zero, there is effectively no limit to how deep to search.
 ///
@@ -138,12 +149,9 @@ pub fn find_path_to_specific<'a, GamestateT: SolvableGameState>(
 ///
 /// `max_solution_count` is the number of solutions found after which to stop searching for more. If this is zero,
 /// there is effectively no limit.
-///
-/// `target` is a target state to find. If specified, will look for a path to the given `target` (and ignore whether the resulting
-/// state's `is_solved` returns true).
 fn find_solving_pours<T: SolvableGameState>(
     state: &mut SolutionState<T>,
-    target: Option<&T>,
+    predicate: impl Fn(&T) -> bool,
     max_depth: u8,
     cutoff: bool,
     max_solution_count: usize
@@ -162,10 +170,7 @@ fn find_solving_pours<T: SolvableGameState>(
             return;
         }
 
-        let gs_is_solved = match target {
-            Some(t) => *t == *gamestate_to_try,
-            None => gamestate_to_try.is_solved()
-        };
+        let gs_is_solved = predicate(gamestate_to_try);
 
         if gs_is_solved {
             state.finished_gamestates.push(gamestate_to_try_idx);
