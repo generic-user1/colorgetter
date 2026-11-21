@@ -255,8 +255,8 @@ fn revealed_bottle_idx<const MAX_BCOUNT: usize, const B_MAX_CAP: usize, const OR
 /// Does consider how likely each color is to appear, see [rate_color_probabilities].
 ///
 /// If, somehow, there are multiple bottles whose topmost units are unknown, only tests with the first occurring unit.
-fn rate_success_chance<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
-    gamestate_to_rate: &PartialGameState<MAX_BCOUNT, B_MAX_CAP>
+fn rate_success_chance<const MAX_BCOUNT: usize, const B_MAX_CAP: usize, const ORDERLESS: bool>(
+    gamestate_to_rate: &PartialGameState<MAX_BCOUNT, B_MAX_CAP, ORDERLESS>
 ) -> f64 {
     //find the bottle with an unknown unit on top
     for (bottle_idx, bottle) in gamestate_to_rate.bottles.iter().enumerate() {
@@ -317,15 +317,46 @@ fn rate_success_chance<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
 ///   as to which color/colors are entirely unknown. This guess will probably be wrong, but the probabilities should still make sense.
 ///
 /// - There is at least one unknown unit (if there aren't any unknown units, division by zero could occur)
-fn rate_color_probabilities<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
-    gamestate_to_rate: &PartialGameState<MAX_BCOUNT, B_MAX_CAP>
+fn rate_color_probabilities<
+    const MAX_BCOUNT: usize,
+    const B_MAX_CAP: usize,
+    const ORDERLESS: bool
+>(
+    gamestate_to_rate: &PartialGameState<MAX_BCOUNT, B_MAX_CAP, ORDERLESS>
 ) -> HashMap<ColoredWaterUnit, f64> {
+    let unknown_counts = unknown_counts(gamestate_to_rate);
+
+    let unknown_unit_count = (unknown_counts.values().sum::<usize>()) as f64;
+    let mut probabilities = HashMap::new();
+    for (color, count) in unknown_counts.into_iter() {
+        probabilities.insert(color, (count as f64) / unknown_unit_count);
+    }
+    probabilities
+}
+
+/// Given a gamestate, determine what actual colors its unknown units must be based on
+/// the number of known units of each color and the number of unknown units
+///
+/// Return value is a [HashMap] of [ColoredWaterUnit] keys to usize values where each value represents the number of unknown units that
+/// must be that color.
+///
+/// Makes some assumptions about the gamestate:
+///
+/// - The maximum number of units for any given color is the same as the capacity of the largest bottle.
+///   If bottles are of varying capacity, this means the estimations returned by this function will be incorrect in some way.
+///   This could lead to panicking - this issue may be resolved in the future
+///
+/// - If there are enough unknown units that all units of any particular color are unknown, this function will make a guess
+///   as to which color/colors are entirely unknown. This guess will probably be wrong, but the counts should still make sense.
+fn unknown_counts<const MAX_BCOUNT: usize, const B_MAX_CAP: usize, const ORDERLESS: bool>(
+    gs: &PartialGameState<MAX_BCOUNT, B_MAX_CAP, ORDERLESS>
+) -> HashMap<ColoredWaterUnit, usize> {
     //first, get color counts for known units, max capacity of the largest bottle,
     //and total number of unknown units
     let mut known_color_counts: HashMap<ColoredWaterUnit, usize> = HashMap::new();
     let mut largest_cap_seen = 0;
     let mut unknown_unit_count = 0_usize;
-    for bottle in gamestate_to_rate.bottles.iter() {
+    for bottle in gs.bottles.iter() {
         if bottle.capacity() > largest_cap_seen {
             largest_cap_seen = bottle.capacity();
         }
@@ -380,12 +411,5 @@ fn rate_color_probabilities<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
         unknown_unit_count,
         "assumed unknown counts didn't sum to actual unknown count"
     );
-
-    //now we know how many of each color there are, we can get probabilities for each color
-    let unknown_unit_count = unknown_unit_count as f64;
-    let mut probabilities = HashMap::new();
-    for (color, count) in assumed_unknown_counts.into_iter() {
-        probabilities.insert(color, (count as f64) / unknown_unit_count);
-    }
-    probabilities
+    assumed_unknown_counts
 }
