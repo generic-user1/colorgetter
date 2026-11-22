@@ -82,7 +82,8 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
                 //keep looping until the main thread hangs up; for each loop, evaluate the solution to assign it a score,
                 //then send (idx, solution, score) back to the main thread
                 while let Ok((solution_idx, possible_solution)) = work_recv.recv() {
-                    let mut working_gs = gamestate_to_solve.clone();
+                    let mut working_gs: PartialGameState<MAX_BCOUNT, B_MAX_CAP, true> =
+                        gamestate_to_solve.clone().into();
                     for pour in possible_solution.get_pours() {
                         working_gs = pour.try_apply(&working_gs).unwrap()
                     }
@@ -130,7 +131,7 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
                             possible_solution,
                             score: final_score,
                             dead_end_chance,
-                            resulting_state: working_gs.into()
+                            resulting_state: working_gs
                         })
                         .expect("main thread hung up before expected");
                 }
@@ -255,8 +256,8 @@ fn revealed_bottle_idx<const MAX_BCOUNT: usize, const B_MAX_CAP: usize, const OR
 /// Does consider how likely each color is to appear, see [rate_color_probabilities].
 ///
 /// If, somehow, there are multiple bottles whose topmost units are unknown, only tests with the first occurring unit.
-fn rate_success_chance<const MAX_BCOUNT: usize, const B_MAX_CAP: usize, const ORDERLESS: bool>(
-    gamestate_to_rate: &PartialGameState<MAX_BCOUNT, B_MAX_CAP, ORDERLESS>
+fn rate_success_chance<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
+    gamestate_to_rate: &PartialGameState<MAX_BCOUNT, B_MAX_CAP, true>
 ) -> f64 {
     //find the bottle with an unknown unit on top
     for (bottle_idx, bottle) in gamestate_to_rate.bottles.iter().enumerate() {
