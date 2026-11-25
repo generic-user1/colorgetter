@@ -93,7 +93,8 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
                     for pour in possible_solution.get_pours() {
                         working_gs = pour.try_apply(&working_gs).unwrap()
                     }
-                    let base_score = working_gs.pours_to_finish_estimate();
+                    //TODO: try to find a more elegant way of combining success chance with the last_poured_color bonus
+                    let base_score = 1000;
 
                     //increase the score by some amount proportional to how likely this state is to be a dead end
                     //the penalty multiplier is 1.0 if the success chance is 1.0, and 2.0 if the success chance is 0.0
