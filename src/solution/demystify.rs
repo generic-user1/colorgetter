@@ -52,10 +52,16 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
     Solution<'a, PartialGameState<MAX_BCOUNT, B_MAX_CAP>>,
     DemystifyNextStepStats
 )> {
-    const MAX_SOLUTIONS: usize = 1000;
+    const MAX_ORDERED_SOLUTIONS: usize = 100;
+    const MAX_ORDERLESS_SOLUTIONS: usize = 1000;
 
     // generate up to `MAX_SOLUTIONS` solutions
-    let possible_solutions = find_many_solutions(gamestate_to_solve, 0, MAX_SOLUTIONS);
+    let possible_solutions = find_many_solutions(
+        gamestate_to_solve,
+        0,
+        MAX_ORDERED_SOLUTIONS,
+        MAX_ORDERLESS_SOLUTIONS
+    );
     let solutions_checked = possible_solutions.len();
 
     // thread count is number of available hardware threads (defaulting to 4 if it can't be queried) or the number

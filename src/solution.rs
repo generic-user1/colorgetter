@@ -83,30 +83,37 @@ impl<'a, GamestateT: SolvableGameState> Solution<'a, GamestateT> {
 /// Will search for solutions with as many as `max_depth` pours. Setting `max_depth` to 0 disables the limit;
 /// will search for possible solutions that are arbitrarily long.
 ///
-/// Will search for as many as `max_count` solutions. Setting `max_count` to 0 disables the limit;
-/// will search for possible solutions until all all possible solutions have been checked.
-///
-/// First tries to find solutions treating the `base_gamestate` as ordered. If that leads to `max_count` solutions,
-/// tries again treating the `base_gamestate` as orderless. This means that when there are relatively few solutions,
-/// you get every single one of them, but when there are relatively many solutions, you get solutions that are more
-/// distinct from each other.
+/// Will first search for as many as `max_ordered` solutions treating the game state as ordered. If
+/// `max_ordered` solutions are found, will instead treat the game state as orderless and search for up to
+/// `max_orderless` solutions. This is to enable conditional ordered/orderless searches based on the number of
+/// solutions possible - the idea being that if there are few solutions, ordered is preferable (to enumerate every possible solution),
+/// but if there are many solutions, orderless is preferable (to get a wider range of possible solutions).
+/// Setting `max_ordered` or `max_orderless` to 0 disables the respective limits - if `max_ordered` is zero, will never transition to
+/// orderless searching, and if `max_orderless` is 0, will not stop searching in orderless mode until all possible solutions are found.
 ///
 /// *Note*: due to some important optimizations, it is currently not possible to find multiple solutions to a
 /// [KnownGameState](crate::gamestate::KnownGameState). Therefore, this method only accepts [PartialGameState]s.
 pub fn find_many_solutions<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
     base_gamestate: &'a PartialGameState<MAX_BCOUNT, B_MAX_CAP, false>,
     max_depth: u8,
-    max_count: usize
+    max_ordered: usize,
+    max_orderless: usize
 ) -> Vec<Solution<'a, PartialGameState<MAX_BCOUNT, B_MAX_CAP, false>>> {
     let mut solution_state = SolutionState::new(base_gamestate);
 
-    find_solving_pours(&mut solution_state, is_solved, max_depth, true, max_count);
-    let pour_sequences = if solution_state.all_solving_pour_sequences().len() == max_count {
+    find_solving_pours(&mut solution_state, is_solved, max_depth, true, max_ordered);
+    let pour_sequences = if solution_state.all_solving_pour_sequences().len() == max_ordered {
         //try again with an orderless state
         let as_orderless: PartialGameState<MAX_BCOUNT, B_MAX_CAP, true> =
             base_gamestate.clone().into();
         let mut solution_state = SolutionState::new(&as_orderless);
-        find_solving_pours(&mut solution_state, is_solved, max_depth, true, max_count);
+        find_solving_pours(
+            &mut solution_state,
+            is_solved,
+            max_depth,
+            true,
+            max_orderless
+        );
         solution_state.all_solving_pour_sequences()
     } else {
         //use solution_state unchanged; since we're already under the limit, an orderless run won't help us
