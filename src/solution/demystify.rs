@@ -97,7 +97,7 @@ pub fn try_demystify_next_step<'a, const MAX_BCOUNT: usize, const B_MAX_CAP: usi
 
                     //increase the score by some amount proportional to how likely this state is to be a dead end
                     //the penalty multiplier is 1.0 if the success chance is 1.0, and 2.0 if the success chance is 0.0
-                    let dead_end_chance = 1.0 - rate_success_chance(&working_gs);
+                    let dead_end_chance = 1.0 - rate_success_chance(&working_gs, 4);
                     let dead_end_chance_penalty_mult = dead_end_chance + 1.0;
                     let penalty_score =
                         ((base_score as f64) * dead_end_chance_penalty_mult) as usize;
@@ -263,7 +263,8 @@ fn revealed_bottle_idx<const MAX_BCOUNT: usize, const B_MAX_CAP: usize, const OR
 ///
 /// If, somehow, there are multiple bottles whose topmost units are unknown, only tests with the first occurring unit.
 fn rate_success_chance<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
-    gamestate_to_rate: &PartialGameState<MAX_BCOUNT, B_MAX_CAP, true>
+    gamestate_to_rate: &PartialGameState<MAX_BCOUNT, B_MAX_CAP, true>,
+    remaining_depth: usize
 ) -> f64 {
     //find the bottle with an unknown unit on top
     for (bottle_idx, bottle) in gamestate_to_rate.bottles.iter().enumerate() {
@@ -290,8 +291,21 @@ fn rate_success_chance<const MAX_BCOUNT: usize, const B_MAX_CAP: usize>(
                         sim_state.bottles[bottle_idx]
                             .try_set_color(top_idx, Some(PartialColoredWaterUnit::Color(color)))
                             .unwrap();
-                        if Solution::try_new(&sim_state, 0).is_some() {
-                            success_chance += probability;
+
+                        if let Some(solution) = Solution::try_new(&sim_state, 0) {
+                            let remaining_depth = remaining_depth.saturating_sub(1);
+                            if remaining_depth == 0 {
+                                success_chance += probability
+                            } else {
+                                let mut next_state = sim_state.clone();
+                                for pour in solution.take_pours() {
+                                    next_state = pour
+                                        .try_apply(&next_state)
+                                        .expect("invalid pour from solution");
+                                }
+                                success_chance +=
+                                    probability * rate_success_chance(&next_state, remaining_depth);
+                            }
                         }
                     }
                 }
